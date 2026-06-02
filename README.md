@@ -72,11 +72,6 @@ La solución se enfocará en:
 - Modelos de inteligencia artificial para estimación de riesgo climático agrícola
 - Prithvi-EO-2.0 como referencia para exploración de modelado satelital avanzado
 
-### Plataforma
-- Arquitectura monolítica modular
-- API backend para consulta de datos y resultados
-- Aplicación web para visualización geoespacial y priorización territorial
-
 ## Enfoque metodológico
 
 El proyecto seguirá cuatro etapas principales:
@@ -93,18 +88,6 @@ El proyecto seguirá cuatro etapas principales:
 4. **Visualización y priorización**  
    Desarrollo de una plataforma web para explorar resultados, visualizar mapas y priorizar municipios y cultivos.
 
-## Estado del proyecto
-
-Fase inicial de planeación y organización técnica.
-
-Las siguientes tareas inmediatas son:
-
-- Definir datasets núcleo de la primera versión.
-- Crear el flujo inicial de ingestión y limpieza de datos.
-- Estructurar el modelo de datos geoespacial.
-- Diseñar la primera versión del indicador de riesgo.
-- Construir el MVP de visualización territorial.
-
 ## Equipo
 
 Proyecto desarrollado en el marco de GovCamp 2026 y del reto:
@@ -115,3 +98,21 @@ Proyecto desarrollado en el marco de GovCamp 2026 y del reto:
 
 Este repositorio documenta el desarrollo técnico y metodológico de la solución.  
 El alcance, las fuentes y las herramientas podrán ajustarse durante la implementación según disponibilidad, calidad y utilidad analítica de los datos.
+
+
+| Tipo                       | Dataset / Servicio                                                      | Qué aporta                                                                                                                | URL                                                                                                                     |
+| -------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Producción agro            | Evaluaciones Agropecuarias Municipales – EVA (2007–2018) – datos.gov.co | Producción, área sembrada, cosechada y rendimiento agrícola a nivel municipal. datos.gov+1                                | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Evaluaciones-Agropecuarias-Municipales-EVA/2pnw-mmge            |
+| Producción agro            | EVA 2019–2023 Base Agrícola – uso oficial                               | Descripción y enlace a la base EVA reciente a nivel municipal (áreas, producción, rendimientos). herramientas.datos.gov+1 | http://herramientas.datos.gov.co/usos/evaluaciones-agropecuarias-municipales-eva-2019-2023-base-agricola                |
+| Calendario cultivos        | EVA – Calendario Nacional de Siembras y Cosechas (2022)                 | Distribución mensual de áreas sembradas y cosechadas a nivel nacional por cultivo. datos.gov                              | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Evaluaciones-Agropecuarias-Municipales-EVA-Calenda/4229-puwp    |
+| Clima observado            | Precipitación – IDEAM (s54a-sgyg)                                       | Datos crudos de precipitación de estaciones automáticas; serie temporal extensa descargable. datos.gov                    | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Precipitaci-n/s54a-sgyg                                       |
+| Clima observado            | Temperatura Máxima del Aire – IDEAM (ccvq-rp9s)                         | Datos crudos de temperatura máxima a 2 m de estaciones automáticas. datos.gov                                             | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Temperatura-M-xima-del-Aire/ccvq-rp9s                         |
+| Estaciones clima           | Catálogo Nacional de Estaciones del IDEAM                               | Listado de estaciones con código, tipo, categoría, coordenadas y otros atributos. datos+1                                 | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Cat-logo-Nacional-de-Estaciones-del-IDEAM/hp9r-jxuu           |
+| Clima satelital            | CHIRPS Daily Precipitation – Google Earth Engine                        | Serie diaria de precipitación 0.05° desde 1981 hasta casi tiempo real, diseñada para monitoreo de sequía. chc.ucsb+1      | https://developers.google.com/earth-engine/datasets/catalog/UCSB-CHG_CHIRPS_DAILY                                       |
+| Clima reanálisis           | ERA5-Land Hourly – ECMWF / Earth Engine                                 | Reanálisis horario de variables de tierra (precipitación, temperatura, humedad, etc.) desde 1950. hal+2                   | https://developers.google.com/earth-engine/datasets/catalog/ECMWF_ERA5_LAND_HOURLY                                      |
+| Clima global               | NASA POWER                                                              | API gratuita con más de 300 variables meteorológicas y de radiación para agricultura y energía. power.larc.nasa+2         | https://power.larc.nasa.gov                                                                                             |
+| Estadísticas agro          | Agronet – Estadísticas                                                  | Portal con estadísticas de producción, áreas, rendimientos, precios y otros indicadores agropecuarios. agronet+1          | https://agronet.gov.co/estadisticas                                                                                     |
+| Producción agro (síntesis) | EVA – UPRA                                                              | Sitio oficial EVA con documentación y acceso a resultados por municipio (área, producción, rendimiento). upra+1           | https://upra.gov.co/es-co/eva                                                                                           |
+| Territorio / mapas         | Colombia en Mapas – IGAC                                                | Plataforma para descargar límites administrativos y otras capas en SHP, GeoJSON, CSV, etc. colombiaenmapas.gov+1          | https://www.colombiaenmapas.gov.co                                                                                      |
+| Territorio / cartografía   | IGAC – Datos Abiertos Cartografía y Geografía                           | Catálogo de cartografía oficial descargable (suelos, límites, capas temáticas). geoportal.igac.gov+1                      | https://geoportal.igac.gov.co/contenido/datos-abiertos-cartografia-y-geografia                                          |
+| Socioeconómico             | DANE – indicadores municipales                                          | Más de 1.300 indicadores territoriales para 1.102 municipios y 32 departamentos. dane.gov                                 | (presentación de indicadores) https://www.dane.gov.co/files/act-dane/conme-dia-p/pres-DICE-UsoDatosAbiertos-jul2023.pdf |
