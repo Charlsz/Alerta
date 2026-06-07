@@ -16,7 +16,7 @@ Desarrollar una plataforma de alerta temprana para riesgo climático agrícola q
 
 - Integrar fuentes de datos abiertas de clima, producción agropecuaria, territorio y contexto socioeconómico.
 - Construir variables e indicadores para caracterizar riesgo climático agrícola.
-- Priorizar municipios, cultivos y zonas agrícolas vulnerables.
+- Priorizar municipios, cultivos y zonas agrícolas vulnerables mediante un Índice de Riesgo Agroclimático (IRA).
 - Implementar modelos de analítica avanzada e inteligencia artificial para estimar riesgo climático agrícola.
 - Desplegar una plataforma web para consulta, visualización y exploración de resultados.
 
@@ -24,92 +24,150 @@ Desarrollar una plataforma de alerta temprana para riesgo climático agrícola q
 
 La solución se enfocará en:
 
-- Integración de datos meteorológicos recientes e históricos.
-- Uso de datos productivos agrícolas a nivel municipal.
-- Incorporación de variables territoriales y cartografía oficial.
+- Integración de datos meteorológicos recientes e históricos (estaciones IDEAM + CHIRPS + ERA5-Land).
+- Uso de datos productivos agrícolas a nivel municipal (EVA, Agronet, UPRA).
+- Incorporación de variables territoriales, cartografía oficial y observación satelital (Sentinel-1 SAR, Sentinel-2).
 - Análisis geoespacial y generación de indicadores de riesgo.
-- Visualización de resultados en una plataforma web con arquitectura monolítica modular.
+- Visualización de resultados en una plataforma web con arquitectura monolítica modular (FastAPI + React).
+
+## Metodología del Índice de Riesgo Agroclimático (IRA)
+
+El IRA combina tres sub-índices para producir un score de riesgo por municipio y cultivo:
+
+### Sub-índices
+
+**1. Sub-índice de Peligro Climático (SPC)**  
+Mide la intensidad y anomalía de las condiciones meteorológicas respecto al histórico:
+- Anomalía de precipitación acumulada (7 y 30 días vs. histórico CHIRPS/IDEAM).
+- Número de días secos consecutivos.
+- Número de días con precipitación por encima del umbral de lluvia extrema.
+- Anomalía de temperatura máxima vs. histórico.
+- Número de días con temperatura máxima por encima del umbral crítico por cultivo.
+- Índice de humedad del suelo derivado de Sentinel-1 SAR (cuando disponible).
+
+**2. Sub-índice de Exposición Productiva (SEP)**  
+Mide la importancia agrícola del municipio y su dependencia del cultivo analizado:
+- Área sembrada y cosechada por cultivo (EVA).
+- Participación del cultivo en la producción municipal y nacional.
+- Varianza histórica del rendimiento (estabilidad productiva).
+- Fase fenológica activa según calendario de siembras y cosechas (EVA Calendario).
+
+**3. Sub-índice de Vulnerabilidad Económica (SVE)**  
+Mide la capacidad de respuesta y el contexto socioeconómico:
+- Nivel e índice de precios de insumos agrícolas (UPRA).
+- Anomalía del índice de insumos vs. promedio 12 meses.
+- Variables socioeconómicas municipales (DANE).
+
+### Fórmula del IRA
+
+```
+IRA = w1 × SPC + w2 × SEP + w3 × SVE
+```
+
+Donde w1, w2, w3 son ponderaciones a definir y calibrar durante la fase de construcción de variables. Los valores iniciales propuestos son w1=0.5, w2=0.3, w3=0.2.
+
+Cada sub-índice se normaliza entre 0 y 1 antes de combinarlos. El IRA final se clasifica en cuatro niveles: **Bajo (0–0.25)**, **Medio (0.25–0.50)**, **Alto (0.50–0.75)** y **Crítico (0.75–1.0)**.
+
+### Componente de IA
+
+Sobre el IRA base se aplica un modelo de detección de anomalías multivariadas (IsolationForest o clustering) entrenado por cultivo o región para identificar municipios que presentan combinaciones inusuales de variables climáticas, productivas y económicas. La explicabilidad del modelo se implementa con importancia de variables (SHAP), permitiendo al usuario final entender qué factores disparan la alerta en cada municipio.
+
+Prithvi-EO-2.0 se evalúa como modelo fundacional para procesamiento de imágenes satelitales Sentinel-2 (clasificación de cobertura, detección de cambios). Su incorporación depende de la viabilidad técnica durante el desarrollo.
 
 ## Fuentes de datos previstas
 
 ### Clima y meteorología
-- IDEAM: precipitación, temperatura máxima, estaciones y eventos meteorológicos.
-- CHIRPS: series históricas de precipitación.
-- NASA POWER: variables climáticas complementarias.
-- ERA5-Land: variables climáticas y de superficie.
-
-### Producción agropecuaria
-- EVA: área sembrada, área cosechada, producción y rendimiento.
-- Agronet: estadísticas agrícolas y apoyo sectorial.
-- UPRA: uso del suelo, aptitud y caracterización agropecuaria.
-
-### Territorio y cartografía
-- IGAC: cartografía oficial y variables territoriales.
-- Colombia en Mapas: capas geográficas base para análisis espacial.
-
-### Contexto socioeconómico
-- DANE: variables socioeconómicas y de mercado.
+- **IDEAM** – Precipitación, temperatura máxima, catálogo de estaciones y eventos meteorológicos.
+- **CHIRPS** – Series históricas de precipitación desde 1981, resolución ~5.5 km, cobertura total de Colombia.
+- **NASA POWER** – Variables climáticas complementarias (radiación, humedad relativa, viento).
+- **ERA5-Land** – Variables climáticas y de superficie de largo plazo (reanálisis).
 
 ### Observación satelital
-- Sentinel-2: vegetación, cobertura y cambios en superficie.
+- **Sentinel-2** – Índices de vegetación (NDVI), cobertura del suelo y cambios superficiales (sensor óptico).
+- **Sentinel-1 SAR** – Humedad del suelo, detección de inundaciones en zonas agrícolas (sensor radar, funciona con cobertura nubosa).
+
+### Producción agropecuaria
+- **EVA** – Área sembrada, área cosechada, producción y rendimiento por municipio y cultivo.
+- **EVA Calendario** – Distribución mensual de siembras y cosechas por cultivo.
+- **Agronet** – Estadísticas agrícolas complementarias.
+- **UPRA** – Uso del suelo, aptitud y caracterización agropecuaria; índice de precios de insumos.
+
+### Territorio y cartografía
+- **IGAC** – Cartografía oficial, límites municipales y variables territoriales.
+- **Colombia en Mapas** – Capas geográficas base para visualización y cruces espaciales.
+
+### Contexto socioeconómico
+- **DANE** – Variables socioeconómicas y de mercado a nivel municipal.
+
+### Referencias metodológicas
+- **Alliance Bioversity–CIAT** – Investigación sobre vulnerabilidad climática agrícola en Colombia y metodologías de índices de riesgo por cultivo.
 
 ## Herramientas y tecnologías
 
-### Procesamiento y análisis
-- Python
-- Pandas
-- GeoPandas
+### Procesamiento y análisis de datos
+- Python 3.10+
+- Pandas / Polars (volúmenes grandes)
+- GeoPandas + Shapely
 - NumPy
 - Dask
 
 ### Infraestructura y análisis geoespacial
-- PostgreSQL
-- PostGIS
-- QGIS
-- Google Earth Engine
+- PostgreSQL + PostGIS
+- QGIS (validación de capas y visualización offline)
+- Google Earth Engine (procesamiento satelital Sentinel-1 y Sentinel-2)
 
 ### Modelado y analítica avanzada
-- Modelos de inteligencia artificial para estimación de riesgo climático agrícola
-- Prithvi-EO-2.0 como referencia para exploración de modelado satelital avanzado
+- Scikit-learn (IsolationForest, clustering, modelos de clasificación)
+- SHAP (explicabilidad de modelos)
+- Prithvi-EO-2.0 (exploración para clasificación satelital avanzada)
+
+### Backend y API
+- FastAPI
+- SQLAlchemy / GeoAlchemy2
+
+### Frontend y visualización
+- React + Vite
+- Leaflet / MapLibre (mapas interactivos)
+- Chart.js / Plotly (series temporales y gráficos)
 
 ## Enfoque metodológico
 
 El proyecto seguirá cuatro etapas principales:
 
 1. **Integración de datos**  
-   Recolección, limpieza, homologación y cruce de fuentes climáticas, productivas, territoriales y socioeconómicas.
+   Recolección, limpieza, homologación y cruce de fuentes climáticas, productivas, territoriales y socioeconómicas. Join municipal como unidad base de análisis.
 
 2. **Construcción de variables**  
-   Generación de indicadores de clima, exposición agrícola, contexto territorial y vulnerabilidad.
+   Generación de los tres sub-índices (SPC, SEP, SVE) y sus variables componentes. Normalización y validación espacial en QGIS.
 
 3. **Estimación de riesgo**  
-   Aplicación de analítica avanzada e inteligencia artificial para estimar el riesgo climático agrícola.
+   Cálculo del IRA ponderado y aplicación del modelo de anomalías multivariadas con explicabilidad SHAP.
 
 4. **Visualización y priorización**  
-   Desarrollo de una plataforma web para explorar resultados, visualizar mapas y priorizar municipios y cultivos.
+   Plataforma web con mapa de riesgo municipal, ranking de municipios–cultivo, ficha por municipio con explicación de variables y series temporales.
 
-## Equipo
+### Reto: Agricultura y Desarrollo Rural – Implementar modelos de IA para predecir rendimientos agrícolas y riesgos climáticos.
 
-Proyecto desarrollado en el marco de GovCamp 2026 y del reto:
+## Datasets
 
-**Agricultura y Desarrollo Rural – Implementar modelos de IA para predecir rendimientos agrícolas y riesgos climáticos.**
+| Tipo | Dataset / Servicio | Qué aporta | URL |
+|---|---|---|---|
+| Producción agro | Evaluaciones Agropecuarias Municipales EVA | Base histórica de producción agrícola, áreas sembradas, cosechadas y rendimiento. | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Evaluaciones-Agropecuarias-Municipales-EVA/2pnw-mmge |
+| Producción agro | Vista EVA | Vista actualizada con resultados estadísticos por municipio. | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Vista-Evaluaciones-Agropecuarias-Municipales-EVA/fp29-z39g |
+| Calendario cultivos | EVA Calendario Nacional de Siembras y Cosechas 2023–2024 | Distribución mensual de áreas sembradas y cosechadas por cultivo. | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Evaluaciones-Agropecuarias-Municipales-EVA-Calenda/4229-puwp/data?no_mobile=true |
+| Calendario cultivos | Consolidado calendarios EVA 2024 – UPRA | Archivo Excel consolidado con calendarios EVA 2024. | https://upra.gov.co/sites/default/files/2025-08/Consolidado%20calendarios%20EVA%202024.xlsx |
+| Clima observado | Precipitación – IDEAM | Lluvia registrada por estaciones automáticas; base para sequía/exceso de lluvia. | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Precipitaci-n/s54a-sgyg |
+| Clima observado | Temperatura Máxima del Aire – IDEAM | Temperatura máxima por estación; útil para estrés térmico. | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Temperatura-M-xima-del-Aire/ccvq-rp9s |
+| Clima observado | Dirección del Viento – IDEAM | Variable complementaria para análisis atmosférico. | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Direcci-n-del-Viento/kiw7-v9ta |
+| Clima histórico | CHIRPS | Series de precipitación desde 1981, resolución ~5.5 km, cubre toda Colombia sin depender de estaciones físicas. | https://www.chc.ucsb.edu/data/chirps |
+| Observación satelital | Sentinel-1 SAR – NASA Earthdata | Humedad del suelo e inundaciones; funciona con cobertura nubosa (radar). | https://www.earthdata.nasa.gov/learn/earth-observation-data-basics/sar |
+| Estaciones clima | Catálogo Nacional de Estaciones del IDEAM | Ubicación, código y atributos de estaciones para cruces espaciales. | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Cat-logo-Nacional-de-Estaciones-del-IDEAM/hp9r-jxuu |
+| Territorio / mapas | Colombia en Mapas | Límites administrativos y capas geográficas para visualización y cruces. | https://www.colombiaenmapas.gov.co |
+| Territorio / cartografía | IGAC – Datos Abiertos | Cartografía oficial descargable. | https://geoportal.igac.gov.co/contenido/datos-abiertos-cartografia-y-geografia |
+| Insumos agrícolas | Índice de precios de insumos agrícolas – UPRA | Costos de insumos para medir vulnerabilidad económica. | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/-ndice-de-precios-de-insumos-agr-colas/gwbi-fnzs |
+| Referencia metodológica | Alliance Bioversity–CIAT | Investigación y metodologías sobre vulnerabilidad climática agrícola en Colombia. | https://alliancebioversityciat.org/es |
 
 ## Notas
 
 Este repositorio documenta el desarrollo técnico y metodológico de la solución.  
 El alcance, las fuentes y las herramientas podrán ajustarse durante la implementación según disponibilidad, calidad y utilidad analítica de los datos.
-
-
-| Tipo                     | Dataset / Servicio                                        | Qué aporta                                                                        | URL                                                                                                                                      |
-| ------------------------ | --------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Producción agro          | Evaluaciones Agropecuarias Municipales EVA                | Base histórica de producción agrícola, áreas sembradas, cosechadas y rendimiento. | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Evaluaciones-Agropecuarias-Municipales-EVA/2pnw-mmge                             |
-| Producción agro          | Vista Evaluaciones Agropecuarias Municipales EVA          | Vista actualizada de EVA con resultados estadísticos por municipio.               | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Vista-Evaluaciones-Agropecuarias-Municipales-EVA/fp29-z39g                       |
-| Calendario cultivos      | EVA. Calendario Nacional de Siembras y Cosechas 2023-2024 | Distribución mensual de áreas sembradas y cosechadas por cultivo.                 | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Evaluaciones-Agropecuarias-Municipales-EVA-Calenda/4229-puwp/data?no_mobile=true |
-| Calendario cultivos      | Consolidado calendarios EVA 2024 – UPRA                   | Archivo Excel consolidado con calendarios EVA 2024.                               | https://upra.gov.co/sites/default/files/2025-08/Consolidado%20calendarios%20EVA%202024.xlsx                                              |
-| Clima observado          | Precipitación – IDEAM                                     | Lluvia registrada por estaciones automáticas; base para sequía/exceso de lluvia.  | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Precipitaci-n/s54a-sgyg                                                        |
-| Clima observado          | Temperatura Máxima del Aire – IDEAM                       | Temperatura máxima por estación; útil para estrés térmico.                        | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Temperatura-M-xima-del-Aire/ccvq-rp9s                                          |
-| Clima observado          | Dirección del Viento – IDEAM                              | Variable complementaria para análisis atmosférico.                                | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Direcci-n-del-Viento/kiw7-v9ta                                                 |
-| Estaciones clima         | Catálogo Nacional de Estaciones del IDEAM                 | Ubicación, código y atributos de estaciones para cruces espaciales.               | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Cat-logo-Nacional-de-Estaciones-del-IDEAM/hp9r-jxuu                            |
-| Territorio / mapas       | Colombia en Mapas                                         | Límites administrativos y capas geográficas para visualización y cruces.          | https://www.colombiaenmapas.gov.co                                                                                                       |
-| Territorio / cartografía | IGAC – Datos Abiertos Cartografía y Geografía             | Cartografía oficial descargable.                                                  | https://geoportal.igac.gov.co/contenido/datos-abiertos-cartografia-y-geografia                                                           |
-| Insumos agrícolas        | Índice de precios de insumos agrícolas                    | Costos de insumos para medir vulnerabilidad económica.                            | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/-ndice-de-precios-de-insumos-agr-colas/gwbi-fnzs                                 |
