@@ -1,0 +1,35 @@
+# --- Core ---
+pandas
+numpy
+pyarrow
+requests
+python-dotenv
+
+# --- Geoespacial ---
+geopandas
+shapely
+rasterio
+xarray
+
+# --- ML / Stats ---
+scikit-learn
+scipy
+shap
+
+# --- API ---
+fastapi
+uvicorn[standard]
+
+# --- DB ---
+psycopg2-binary
+SQLAlchemy
+geoalchemy2
+
+# --- Testing ---
+pytest
+pytest-cov
+
+# --- Dev / Utils ---
+jupyter
+matplotlib
+seaborn
