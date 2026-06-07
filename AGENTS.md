@@ -26,7 +26,7 @@ El concurso para el que se construye es **Datos al Ecosistema 2026 – IA para C
 4. **Reproducibilidad.** Cualquier resultado del IRA debe poder regenerarse corriendo `make pipeline`.
 5. **Datos reales únicamente.** Nunca generes datos sintéticos para tests de integración. Usa fixtures pequeñas reales o marca el test como `@pytest.mark.skip`.
 6. **Explica el riesgo.** Cada municipio que aparezca como "Alto" o "Crítico" debe poder justificar su score con importancias de variables (SHAP).
-
+7. Evita hacer overengineering.
 ---
 
 ## 3. Arquitectura general
