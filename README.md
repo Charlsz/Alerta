@@ -10,8 +10,11 @@ La plataforma busca apoyar la toma de decisiones mediante la priorización de te
 
 ## Enunciado del reto
 Agricultura y Desarrollo Rural 
-Reto: Implementar modelos de IA para predecir rendimientos agrícolas y riesgos climáticos. 
+
+Reto: Implementar modelos de IA para predecir rendimientos agrícolas y riesgos climáticos.
+
 Datos sugeridos: Producción agrícola, uso del suelo, datos meteorológicos y precios de mercado. 
+
 Impacto: Mayor productividad y resiliencia de comunidades rurales. 
 
 ## Objetivo general
