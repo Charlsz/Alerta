@@ -8,6 +8,12 @@ Este proyecto propone una solución analítica y geoespacial para identificar ri
 
 La plataforma busca apoyar la toma de decisiones mediante la priorización de territorios y cultivos con mayor exposición y vulnerabilidad frente a condiciones climáticas adversas.
 
+## Enunciado del reto
+Agricultura y Desarrollo Rural 
+Reto: Implementar modelos de IA para predecir rendimientos agrícolas y riesgos climáticos. 
+Datos sugeridos: Producción agrícola, uso del suelo, datos meteorológicos y precios de mercado. 
+Impacto: Mayor productividad y resiliencia de comunidades rurales. 
+
 ## Objetivo general
 
 Desarrollar una plataforma de alerta temprana para riesgo climático agrícola que utilice datos abiertos para analizar, integrar y visualizar información climática, productiva y territorial a nivel municipal.
