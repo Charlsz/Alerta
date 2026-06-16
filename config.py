@@ -1,38 +1,68 @@
-# config.py
+"""Configuración central del proyecto Alerta.
+
+Toda constante o parámetro ajustable vive aquí.
+Ningún número mágico debe aparecer en src/.
+"""
+from __future__ import annotations
+
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict
+
 
 @dataclass
 class IRAConfig:
-    # Ponderaciones de los sub-índices
-    w_spc: float = 0.5
-    w_sep: float = 0.3
-    w_sve: float = 0.2
+    # ── Ponderaciones de los sub-índices ────────────────────────────────────
+    w_spc: float = 0.5   # Sub-índice de Peligro Climático
+    w_sep: float = 0.3   # Sub-índice de Exposición Productiva
+    w_sve: float = 0.2   # Sub-índice de Vulnerabilidad Económica
 
-    # Umbrales de lluvia extrema (percentil histórico)
-    precip_extrema_percentil: float = 95.0
+    # ── Umbrales climáticos ──────────────────────────────────────────────────
+    precip_extrema_percentil: float = 95.0  # Percentil para lluvia extrema
 
-    # Umbrales de temperatura crítica por cultivo (°C)
-    tmax_critica_por_cultivo: Dict[str, float] = field(default_factory=lambda: {
-        "maiz": 34.0,
-        "arroz": 35.0,
-        "papa": 28.0,
-        "cafe": 30.0,
-        "default": 33.0,
-    })
+    # Temperatura crítica por cultivo (°C). Usar "default" cuando el cultivo
+    # no esté listado explícitamente.
+    tmax_critica_por_cultivo: Dict[str, float] = field(
+        default_factory=lambda: {
+            "maiz": 34.0,
+            "arroz": 35.0,
+            "papa": 28.0,
+            "cafe": 30.0,
+            "default": 33.0,
+        }
+    )
 
-    # Paginación SODA API
+    # ── Paginación SODA API (datos.gov.co) ───────────────────────────────────
     soda_page_size: int = 50_000
 
-    # Ruta de datos
+    # ── Rutas de datos ───────────────────────────────────────────────────────
     data_raw: str = "data/raw"
     data_processed: str = "data/processed"
     data_features: str = "data/features"
 
-    # Clasificación IRA
-    ira_niveles: Dict[str, tuple] = field(default_factory=lambda: {
-        "Bajo":    (0.00, 0.25),
-        "Medio":   (0.25, 0.50),
-        "Alto":    (0.50, 0.75),
-        "Crítico": (0.75, 1.00),
-    })
+    # Archivo DuckDB: motor analítico local.
+    # Todas las tablas del proyecto se almacenan aquí.
+    duckdb_path: str = "data/alerta.duckdb"
+
+    # ── Clasificación IRA ────────────────────────────────────────────────────
+    # Rangos [min, max) para asignar nivel de riesgo.
+    ira_niveles: Dict[str, tuple] = field(
+        default_factory=lambda: {
+            "Bajo":    (0.00, 0.25),
+            "Medio":   (0.25, 0.50),
+            "Alto":    (0.50, 0.75),
+            "Crítico": (0.75, 1.01),  # 1.01 para incluir score exacto de 1.0
+        }
+    )
+
+    def ensure_dirs(self) -> None:
+        """Crea las carpetas de datos si no existen."""
+        for path in (self.data_raw, self.data_processed, self.data_features):
+            Path(path).mkdir(parents=True, exist_ok=True)
+        # Asegurar que el directorio padre de DuckDB también exista
+        Path(self.duckdb_path).parent.mkdir(parents=True, exist_ok=True)
+
+
+# Instancia global lista para importar desde cualquier módulo.
+# Ejemplo: from config import config
+config = IRAConfig()
