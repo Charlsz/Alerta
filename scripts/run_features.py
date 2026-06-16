@@ -1,9 +1,19 @@
-"""Orquestador de feature engineering.
+"""Orquestador de feature engineering (Pasos 4-6).
+
+Orden de ejecución:
+    1. load_duckdb    — Parquet → tablas raw_*
+    2. clean          — raw_* → clean_* (tipos, DANE, filtros)
+    3. clean_bridge   — crea vistas raw_*_view → clean_*
+    4. spatial        — join espacial estaciones → municipio
+    5. produccion     — features EVA
+    6. clima          — features IDEAM + CHIRPS
+    7. vulnerabilidad — features insumos
+    8. store          — tabla maestra features_municipio_cultivo
 
 Uso:
     python scripts/run_features.py
     python scripts/run_features.py --force
-    python scripts/run_features.py --only spatial
+    python scripts/run_features.py --only clean
 """
 from __future__ import annotations
 
@@ -24,14 +34,15 @@ class FeatureStep:
     module: str
 
 
-# Orden estricto de dependencias
 _STEPS: list[FeatureStep] = [
-    FeatureStep("load_duckdb",    "src.ingestion.load_duckdb"),     # Parquet → DuckDB
-    FeatureStep("spatial",        "src.features.spatial"),           # estaciones → municipio
-    FeatureStep("produccion",     "src.features.produccion"),        # EVA
-    FeatureStep("clima",          "src.features.clima"),             # IDEAM + CHIRPS
-    FeatureStep("vulnerabilidad", "src.features.vulnerabilidad"),    # insumos
-    FeatureStep("store",          "src.features.store"),             # tabla maestra
+    FeatureStep("load_duckdb",    "src.ingestion.load_duckdb"),
+    FeatureStep("clean",          "src.features.clean"),
+    FeatureStep("clean_bridge",   "src.features.clean_bridge"),
+    FeatureStep("spatial",        "src.features.spatial"),
+    FeatureStep("produccion",     "src.features.produccion"),
+    FeatureStep("clima",          "src.features.clima"),
+    FeatureStep("vulnerabilidad", "src.features.vulnerabilidad"),
+    FeatureStep("store",          "src.features.store"),
 ]
 
 
@@ -53,7 +64,7 @@ def main() -> None:
         handlers=[logging.StreamHandler(sys.stdout)],
     )
     parser = argparse.ArgumentParser(description="Pipeline de feature engineering")
-    parser.add_argument("--force", action="store_true", help="Fuerza reconstrucción de todas las tablas")
+    parser.add_argument("--force", action="store_true", help="Reconstruye todas las tablas")
     parser.add_argument("--only", metavar="STEP", help=f"Solo este paso: {', '.join(s.name for s in _STEPS)}")
     args = parser.parse_args()
 
