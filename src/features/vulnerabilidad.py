@@ -1,15 +1,15 @@
-"""Variables económicas (Sub-índice de Vulnerabilidad Económica — SVE).
+"""Variables de vulnerabilidad económica y social (Sub-índice SVE).
 
-Fuente: tabla DuckDB `raw_insumos`.
+Fuentes:
+    - clean_insumos          (índice precios insumos agrícolas UPRA)
+    - clean_dane_municipios  (NBI, población rural — DANE)  ← nuevo
 
-Variables que construye (serie mensual nacional):
-    insumos_nivel        — valor actual del índice
-    insumos_anomalia_12m — desvío vs. media móvil 12 meses
-    insumos_delta_3m     — cambio en los últimos 3 meses
+Variables que construye:
+    Insumos (3 vars, serie mensual nacional):
+        insumos_nivel, insumos_anomalia_12m, insumos_delta_3m
 
-Nota: el índice de insumos es nacional (no tiene desagregación municipal),
-por lo que estas variables son iguales para todos los municipios en un periodo.
-Se unen a la tabla maestra en store.py mediante el campo `periodo`.
+    DANE por municipio (3 vars, estáticas — se unen por codigo_municipio):
+        nbi_total, poblacion_rural, pct_rural                ← nuevas
 """
 from __future__ import annotations
 
@@ -21,55 +21,85 @@ from src.ingestion.load_duckdb import get_connection
 
 logger = logging.getLogger(__name__)
 
-_TABLE = "features_vulnerabilidad"
+_TABLE      = "features_vulnerabilidad"
+_TABLE_DANE = "features_dane"
+
+
+def _table_exists(con, table: str) -> bool:
+    return bool(
+        con.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
+            [table],
+        ).fetchone()[0]
+    )
+
+
+def _build_insumos(con) -> pd.DataFrame:
+    """Serie mensual de insumos con anomalías."""
+    df = con.execute("SELECT * FROM clean_insumos").df()
+    df.columns = [c.lower().strip() for c in df.columns]
+
+    fecha_col = next((c for c in df.columns if "periodo" in c or "fecha" in c or "mes" in c), None)
+    valor_col = next((c for c in df.columns if "nivel" in c or "indice" in c or "valor" in c), None)
+
+    if not fecha_col or not valor_col:
+        logger.error("[vulnerabilidad] Columnas no encontradas. Cols: %s", list(df.columns))
+        return pd.DataFrame()
+
+    df = (df[[fecha_col, valor_col]]
+          .rename(columns={fecha_col: "periodo", valor_col: "insumos_nivel"}))
+    df["periodo"]       = pd.to_datetime(df["periodo"], errors="coerce").dt.to_period("M").dt.to_timestamp()
+    df["insumos_nivel"] = pd.to_numeric(df["insumos_nivel"], errors="coerce")
+    df = df.dropna().sort_values("periodo").reset_index(drop=True)
+
+    df["insumos_media_12m"]    = df["insumos_nivel"].rolling(12, min_periods=6).mean()
+    df["insumos_anomalia_12m"] = df["insumos_nivel"] - df["insumos_media_12m"]
+    df["insumos_delta_3m"]     = df["insumos_nivel"].diff(3)
+
+    return df[["periodo", "insumos_nivel", "insumos_anomalia_12m", "insumos_delta_3m"]]
+
+
+def _build_dane(con) -> pd.DataFrame:
+    """Variables socioeconómicas municipales (DANE): NBI, población rural."""
+    if not _table_exists(con, "clean_dane_municipios"):
+        logger.warning("[vulnerabilidad] clean_dane_municipios no existe. Vars DANE serán NaN.")
+        return pd.DataFrame(columns=["codigo_municipio", "nbi_total",
+                                     "poblacion_rural", "pct_rural"])
+
+    df = con.execute("""
+        SELECT
+            codigo_municipio,
+            nbi_total,
+            poblacion_rural,
+            pct_rural
+        FROM clean_dane_municipios
+        WHERE codigo_municipio IS NOT NULL
+    """).df()
+    logger.info("[vulnerabilidad] Variables DANE: %d municipios cargados.", len(df))
+    return df
 
 
 def build(force: bool = False) -> None:
-    """Genera la tabla `features_vulnerabilidad` en DuckDB."""
+    """Genera features_vulnerabilidad y features_dane en DuckDB."""
     con = get_connection()
 
     if not force:
-        existing = con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?", [_TABLE]
-        ).fetchone()[0]  # type: ignore[index]
-        if existing:
-            logger.info("[vulnerabilidad] Tabla '%s' ya existe, omitiendo.", _TABLE)
+        if _table_exists(con, _TABLE) and _table_exists(con, _TABLE_DANE):
+            logger.info("[vulnerabilidad] Tablas ya existen, omitiendo.")
             con.close()
             return
 
     logger.info("[vulnerabilidad] Construyendo variables de insumos agrícolas...")
+    insumos_df = _build_insumos(con)
+    if not insumos_df.empty:
+        con.execute(f"CREATE OR REPLACE TABLE {_TABLE} AS SELECT * FROM insumos_df")
+        (rows,) = con.execute(f"SELECT COUNT(*) FROM {_TABLE}").fetchone()  # type: ignore[misc]
+        logger.info("[vulnerabilidad] '%s' creada: %d filas.", _TABLE, rows)
 
-    # Leer tabla cruda y normalizar columnas
-    df = con.execute("SELECT * FROM raw_insumos").df()
-    df.columns = [c.lower().strip() for c in df.columns]
+    logger.info("[vulnerabilidad] Construyendo variables socioeconómicas DANE...")
+    dane_df = _build_dane(con)
+    con.execute(f"CREATE OR REPLACE TABLE {_TABLE_DANE} AS SELECT * FROM dane_df")
+    (rows,) = con.execute(f"SELECT COUNT(*) FROM {_TABLE_DANE}").fetchone()  # type: ignore[misc]
+    logger.info("[vulnerabilidad] '%s' creada: %d filas.", _TABLE_DANE, rows)
 
-    # Detectar columna de fecha y de valor del índice
-    fecha_col = next((c for c in df.columns if "fecha" in c or "periodo" in c or "mes" in c), None)
-    valor_col = next((c for c in df.columns if "indice" in c or "valor" in c or "índice" in c), None)
-
-    if not fecha_col or not valor_col:
-        logger.error(
-            "[vulnerabilidad] No se encontraron columnas fecha/valor en raw_insumos. "
-            "Columnas disponibles: %s", list(df.columns)
-        )
-        con.close()
-        return
-
-    df = df[[fecha_col, valor_col]].rename(columns={fecha_col: "periodo", valor_col: "insumos_nivel"})
-    df["periodo"] = pd.to_datetime(df["periodo"], errors="coerce").dt.to_period("M").dt.to_timestamp()
-    df["insumos_nivel"] = pd.to_numeric(df["insumos_nivel"], errors="coerce")
-    df = df.dropna().sort_values("periodo").reset_index(drop=True)
-
-    # Media móvil 12 meses y anomalía
-    df["insumos_media_12m"]    = df["insumos_nivel"].rolling(12, min_periods=6).mean()
-    df["insumos_anomalia_12m"] = df["insumos_nivel"] - df["insumos_media_12m"]
-
-    # Delta 3 meses
-    df["insumos_delta_3m"] = df["insumos_nivel"].diff(3)
-
-    result = df[["periodo", "insumos_nivel", "insumos_anomalia_12m", "insumos_delta_3m"]]
-
-    con.execute(f"CREATE OR REPLACE TABLE {_TABLE} AS SELECT * FROM result")
-    (rows,) = con.execute(f"SELECT COUNT(*) FROM {_TABLE}").fetchone()  # type: ignore[misc]
-    logger.info("[vulnerabilidad] Tabla '%s' creada: %d filas.", _TABLE, rows)
     con.close()

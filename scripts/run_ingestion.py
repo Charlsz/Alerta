@@ -21,25 +21,28 @@ logger = logging.getLogger(__name__)
 @dataclass
 class IngestStep:
     name: str
-    module: str  # ruta importable, ej. "src.ingestion.eva"
+    module: str
 
 
-# Orden de ejecución: estaciones primero (otros dependen de ellas para joins)
+# Orden: estaciones primero → fuentes grandes al final
 _STEPS: list[IngestStep] = [
-    IngestStep("estaciones", "src.ingestion.ideam_estaciones"),
-    IngestStep("municipios", "src.ingestion.igac_municipios"),
-    IngestStep("eva", "src.ingestion.eva"),
-    IngestStep("eva_calendario", "src.ingestion.eva_calendario"),
-    IngestStep("insumos", "src.ingestion.insumos"),
+    IngestStep("estaciones",    "src.ingestion.ideam_estaciones"),
+    IngestStep("municipios",    "src.ingestion.igac_municipios"),
+    IngestStep("eva",           "src.ingestion.eva"),
+    IngestStep("eva_calendario","src.ingestion.eva_calendario"),
+    IngestStep("insumos",       "src.ingestion.insumos"),
+    IngestStep("dane",          "src.ingestion.dane_municipios"),       # nuevo
     IngestStep("precipitacion", "src.ingestion.ideam_precipitacion"),
-    IngestStep("temperatura", "src.ingestion.ideam_temperatura"),
-    # CHIRPS va al final: es el más pesado (~400 MB histórico)
-    IngestStep("chirps", "src.ingestion.chirps"),
+    IngestStep("temperatura",   "src.ingestion.ideam_temperatura"),
+    IngestStep("humedad",       "src.ingestion.ideam_humedad"),          # nuevo
+    IngestStep("presion",       "src.ingestion.ideam_presion"),          # nuevo
+    IngestStep("tambiente",     "src.ingestion.ideam_tambiente"),        # nuevo
+    # CHIRPS al final: es el más pesado (~400 MB histórico)
+    IngestStep("chirps",        "src.ingestion.chirps"),
 ]
 
 
 def _run_step(step: IngestStep, force: bool) -> bool:
-    """Importa el módulo y llama run(force=force). Retorna True si éxito."""
     try:
         mod = importlib.import_module(step.module)
         run_fn: Callable = mod.run  # type: ignore[attr-defined]
@@ -78,22 +81,16 @@ def main() -> None:
         logger.info("\n%s Iniciando: %s %s", "=" * 20, step.name.upper(), "=" * 20)
         t0 = time.time()
         ok = _run_step(step, force=args.force)
-        elapsed = time.time() - t0
         results[step.name] = ok
-        status = "✅" if ok else "❌"
-        logger.info("%s %s completado en %.1fs", status, step.name, elapsed)
+        logger.info("%s %s (%.1fs)", "✅" if ok else "❌", step.name, time.time() - t0)
 
-    # Resumen final
+    failed = [n for n, ok in results.items() if not ok]
     logger.info("\n%s RESUMEN %s", "=" * 20, "=" * 20)
-    failed = [name for name, ok in results.items() if not ok]
     for name, ok in results.items():
         logger.info("  %s %s", "✅" if ok else "❌", name)
-
     if failed:
-        logger.warning("Fallaron %d módulos: %s", len(failed), failed)
+        logger.warning("Módulos con error: %s", failed)
         sys.exit(1)
-    else:
-        logger.info("Ingesta completada exitosamente.")
 
 
 if __name__ == "__main__":

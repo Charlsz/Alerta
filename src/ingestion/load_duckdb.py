@@ -36,11 +36,11 @@ def _load_parquet(con: duckdb.DuckDBPyConnection, parquet_path: Path, table: str
         SELECT * FROM read_parquet('{parquet_path}')
     """)
     (rows,) = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()  # type: ignore[misc]
-    logger.info("[DuckDB] Tabla %-35s %d filas", f"'{table}'", rows)
+    logger.info("[DuckDB] Tabla %-40s %d filas", f"'{table}'", rows)
     return rows
 
 
-def run(force: bool = False) -> None:  # noqa: ARG001  (force reservado para compatibilidad)
+def run(force: bool = False) -> None:  # noqa: ARG001
     """Carga todos los Parquet crudos a DuckDB.
 
     Las tablas se crean con CREATE OR REPLACE, por lo que siempre
@@ -50,13 +50,19 @@ def run(force: bool = False) -> None:  # noqa: ARG001  (force reservado para com
     raw = Path(config.data_raw)
 
     tables = [
-        (raw / "ideam_estaciones.parquet", "raw_estaciones"),
-        (raw / "eva.parquet",              "raw_eva"),
-        (raw / "eva_vista.parquet",        "raw_eva_vista"),
-        (raw / "eva_calendario.parquet",   "raw_eva_calendario"),
-        (raw / "insumos.parquet",          "raw_insumos"),
-        (raw / "ideam_precip.parquet",     "raw_precipitacion"),
-        (raw / "ideam_tmax.parquet",       "raw_temperatura"),
+        # Existentes
+        (raw / "ideam_estaciones.parquet",  "raw_estaciones"),
+        (raw / "eva.parquet",               "raw_eva"),
+        (raw / "eva_vista.parquet",         "raw_eva_vista"),
+        (raw / "eva_calendario.parquet",    "raw_eva_calendario"),
+        (raw / "insumos.parquet",           "raw_insumos"),
+        (raw / "ideam_precip.parquet",      "raw_precipitacion"),
+        (raw / "ideam_tmax.parquet",        "raw_temperatura"),
+        # Nuevas fuentes (Paso 6B)
+        (raw / "ideam_humedad.parquet",     "raw_humedad"),
+        (raw / "ideam_presion.parquet",     "raw_presion"),
+        (raw / "ideam_tambiente.parquet",   "raw_tambiente"),
+        (raw / "dane_municipios.parquet",   "raw_dane_municipios"),
     ]
 
     total_rows = 0
