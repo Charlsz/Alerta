@@ -1,7 +1,7 @@
-"""Ingesta de datos EVA Calendario desde datos.gov.co (SODA API)."""
+"""Ingesta de datos EVA Calendario desde Excel de UPRA."""
 import argparse
+import io
 import logging
-import os
 from pathlib import Path
 
 import pandas as pd
@@ -11,49 +11,23 @@ from config import IRAConfig
 
 logger = logging.getLogger(__name__)
 
-_SODA_BASE = "https://www.datos.gov.co/resource"
-
-
-def _fetch_dataset(dataset_id: str, config: IRAConfig) -> pd.DataFrame:
-    """Download a full SODA dataset using pagination."""
-    headers = {}
-    app_token = os.getenv("SODA_APP_TOKEN")
-    if app_token:
-        headers["X-App-Token"] = app_token
-
-    limit = config.soda_page_size
-    offset = 0
-    records: list[dict] = []
-
-    while True:
-        url = f"{_SODA_BASE}/{dataset_id}.json?$limit={limit}&$offset={offset}"
-        try:
-            response = requests.get(url, headers=headers, timeout=120)
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            logger.warning("Download failed for %s at offset %s: %s", dataset_id, offset, exc)
-            break
-
-        batch = response.json()
-        if not batch:
-            break
-
-        records.extend(batch)
-        offset += limit
-
-    df = pd.DataFrame(records)
-    return df
+_URL = (
+    "https://upra.gov.co/sites/default/files/2025-08/"
+    "Consolidado%20calendarios%20EVA%202024.xlsx"
+)
 
 
 def run(config: IRAConfig, force: bool = False) -> None:
-    """Download EVA Calendario raw data and persist to data/raw/."""
+    """Download EVA Calendario Excel from UPRA and persist to data/raw/."""
     output_path = Path(config.data_raw) / "eva_calendario.parquet"
     if output_path.exists() and not force:
         logger.info("eva_calendario.parquet already exists. Skipping download.")
         return
 
-    logger.info("Downloading EVA Calendario dataset (4229-puwp)...")
-    df = _fetch_dataset("4229-puwp", config)
+    logger.info("Downloading EVA Calendario from UPRA...")
+    resp = requests.get(_URL, timeout=60)
+    resp.raise_for_status()
+    df = pd.read_excel(io.BytesIO(resp.content))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
     logger.info("Saved eva_calendario.parquet with %s rows to %s", len(df), output_path)

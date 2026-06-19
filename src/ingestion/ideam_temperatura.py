@@ -1,8 +1,8 @@
-"""Ingesta de temperatura máxima del aire IDEAM desde datos.gov.co (SODA API)."""
+"""Ingesta de temperatura máxima del aire IDEAM desde datos.gov.co (CSV directo)."""
 import argparse
 import datetime
+import io
 import logging
-import os
 from pathlib import Path
 
 import pandas as pd
@@ -12,42 +12,16 @@ from config import IRAConfig
 
 logger = logging.getLogger(__name__)
 
-_SODA_BASE = "https://www.datos.gov.co/resource"
 
-
-def _fetch_dataset(dataset_id: str, config: IRAConfig, where_clause: str | None = None) -> pd.DataFrame:
-    """Download a full SODA dataset using pagination and an optional $where clause."""
-    headers = {}
-    app_token = os.getenv("SODA_APP_TOKEN")
-    if app_token:
-        headers["X-App-Token"] = app_token
-
-    limit = config.soda_page_size
-    offset = 0
-    records: list[dict] = []
-
-    while True:
-        params: dict[str, str | int] = {"$limit": limit, "$offset": offset}
-        if where_clause:
-            params["$where"] = where_clause
-
-        url = f"{_SODA_BASE}/{dataset_id}.json"
-        try:
-            response = requests.get(url, headers=headers, params=params, timeout=120)
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            logger.warning("Download failed for %s at offset %s: %s", dataset_id, offset, exc)
-            break
-
-        batch = response.json()
-        if not batch:
-            break
-
-        records.extend(batch)
-        offset += limit
-
-    df = pd.DataFrame(records)
-    return df
+def _download_csv(dataset_id: str, where_clause: str | None = None) -> pd.DataFrame:
+    """Download a SODA dataset as CSV with optional $where filter."""
+    url = f"https://www.datos.gov.co/resource/{dataset_id}.csv"
+    params = {}
+    if where_clause:
+        params["$where"] = where_clause
+    resp = requests.get(url, params=params, stream=True, timeout=600)
+    resp.raise_for_status()
+    return pd.read_csv(io.BytesIO(resp.content), low_memory=False)
 
 
 def run(config: IRAConfig, force: bool = False) -> None:
@@ -57,12 +31,11 @@ def run(config: IRAConfig, force: bool = False) -> None:
         logger.info("ideam_tmax.parquet already exists. Skipping download.")
         return
 
-    # Filter for the last 5 years to avoid downloading the full ~27M rows.
     cutoff = datetime.date.today() - datetime.timedelta(days=5 * 365)
     where = f"fechaobservacion >= '{cutoff.isoformat()}'"
 
     logger.info("Downloading IDEAM temperature (ccvq-rp9s) with $where=%s ...", where)
-    df = _fetch_dataset("ccvq-rp9s", config, where_clause=where)
+    df = _download_csv("ccvq-rp9s", where_clause=where)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
 
