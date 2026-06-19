@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from config import IRAConfig
+from config import config
 
 logger = logging.getLogger(__name__)
 
@@ -17,20 +17,25 @@ _URL = (
 )
 
 
-def run(config: IRAConfig, force: bool = False) -> None:
+def run(force: bool = False) -> None:
     """Download EVA Calendario Excel from UPRA and persist to data/raw/."""
     output_path = Path(config.data_raw) / "eva_calendario.parquet"
     if output_path.exists() and not force:
-        logger.info("eva_calendario.parquet already exists. Skipping download.")
+        logger.info("[EVA Calendario] Ya existe %s, omitiendo.", output_path.name)
         return
 
-    logger.info("Downloading EVA Calendario from UPRA...")
+    logger.info("[EVA Calendario] Descargando desde UPRA...")
     resp = requests.get(_URL, timeout=60)
     resp.raise_for_status()
     df = pd.read_excel(io.BytesIO(resp.content))
+    # Drop unnamed/index columns that cause Parquet type issues
+    df = df.loc[:, ~df.columns.str.contains("^Unnamed", case=False)]
+    df.columns = [c.lower().strip() for c in df.columns]
+    for col in df.select_dtypes(include="object").columns:
+        df[col] = df[col].astype(str)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
-    logger.info("Saved eva_calendario.parquet with %s rows to %s", len(df), output_path)
+    logger.info("[EVA Calendario] %d filas guardadas en %s", len(df), output_path)
 
 
 def main() -> None:
@@ -38,12 +43,11 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    parser = argparse.ArgumentParser(description="Ingest EVA Calendario dataset from datos.gov.co")
-    parser.add_argument("--force", action="store_true", help="Force re-download even if file exists")
+    parser = argparse.ArgumentParser(description="Descarga EVA Calendario desde UPRA")
+    parser.add_argument("--force", action="store_true", help="Fuerza re-descarga")
     args = parser.parse_args()
 
-    config = IRAConfig()
-    run(config, force=args.force)
+    run(force=args.force)
 
 
 if __name__ == "__main__":

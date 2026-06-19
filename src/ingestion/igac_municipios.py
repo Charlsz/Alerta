@@ -37,11 +37,10 @@ _MGN_URL = (
     "?where=1%3D1&outFields=*&f=geojson&outSR=4326"
 )
 
-# Fallback: GeoJSON simplificado público de municipios Colombia
-# (repositorio github.com/march1993/colombia-geojson, licencia ODbL)
+# Fallback: GeoJSON de municipios Colombia (MGN 2018, ODbL)
 _FALLBACK_URL = (
     "https://raw.githubusercontent.com/"
-    "pipeDream/geojson-colombia/master/municipios.geojson"
+    "caticoa3/colombia_mapa/master/co_2018_MGN_MPIO_POLITICO.geojson"
 )
 
 _OUTPUT = "municipios.gpkg"
@@ -51,7 +50,9 @@ _LAYER = "municipios"
 _COL_MAP = {
     # MGN DANE
     "mpio_cdpmp": "codigo_municipio",
+    "mpio_ccnct": "codigo_municipio",
     "mpio_cnmbr": "nombre_municipio",
+
     "dpto_ccdgo": "codigo_departamento",
     "dpto_cnmbr": "nombre_departamento",
     # Nombres alternativos
@@ -70,8 +71,8 @@ def _normalize_columns(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         if col.lower() in _COL_MAP
     }
     gdf = gdf.rename(columns=rename)
-    keep = [c for c in _COL_MAP.values() if c in gdf.columns] + ["geometry"]
-    return gdf[keep]
+    cols = list(dict.fromkeys(c for c in _COL_MAP.values() if c in gdf.columns))  # dedup, preserve order
+    return gdf[cols + ["geometry"]]
 
 
 def _fetch_geojson(url: str, label: str) -> gpd.GeoDataFrame | None:

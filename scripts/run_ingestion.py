@@ -10,10 +10,21 @@ from __future__ import annotations
 import argparse
 import importlib
 import logging
+import os
 import sys
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
+
+# Ensure project root is on sys.path for `from src.ingestion.xxx import run`
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+# Force UTF-8 for logging output (avoids cp1252 emoji issues on Windows)
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
 logger = logging.getLogger(__name__)
 
@@ -82,12 +93,12 @@ def main() -> None:
         t0 = time.time()
         ok = _run_step(step, force=args.force)
         results[step.name] = ok
-        logger.info("%s %s (%.1fs)", "✅" if ok else "❌", step.name, time.time() - t0)
+        logger.info("[%s] %s (%.1fs)", "OK" if ok else "FAIL", step.name, time.time() - t0)
 
     failed = [n for n, ok in results.items() if not ok]
     logger.info("\n%s RESUMEN %s", "=" * 20, "=" * 20)
     for name, ok in results.items():
-        logger.info("  %s %s", "✅" if ok else "❌", name)
+        logger.info("  [%s] %s", "OK" if ok else "FAIL", name)
     if failed:
         logger.warning("Módulos con error: %s", failed)
         sys.exit(1)

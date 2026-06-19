@@ -2,6 +2,7 @@
 pandas>=2.2
 numpy>=1.26
 pyarrow>=15.0          # Parquet I/O
+openpyxl>=3.1          # Excel I/O (EVA Calendario)
 requests>=2.32
 python-dotenv>=1.0
 

@@ -1,93 +1,163 @@
 # src/ingestion/
 
-Descarga los datos crudos de cada fuente y los guarda en `data/raw/`. Cada script es independiente, idempotente y sigue el mismo patrón.
+Descarga los datos crudos de cada fuente externa y los guarda en `data/raw/`.
+Cada script es independiente, idempotente y expone `run(force=False)` para el orquestador (`scripts/run_ingestion.py`).
 
 ---
 
-## Archivos y salidas
+## Archivo por archivo
 
-| Archivo | Fuente | Salida en `data/raw/` |
-|---|---|---|
-| `ideam_estaciones.py` | Catálogo estaciones IDEAM (`hp9r-jxuu`) | `ideam_estaciones.parquet` |
-| `igac_municipios.py` | Capa municipios Colombia — DANE/IGAC | `municipios.gpkg` |
-| `eva.py` | EVA – datos.gov.co (`2pnw-mmge`, `fp29-z39g`) | `eva.parquet`, `eva_vista.parquet` |
-| `eva_calendario.py` | EVA Calendario 2023–2024 (`4229-puwp`) | `eva_calendario.parquet` |
-| `insumos.py` | Índice precios insumos agrícolas (`gwbi-fnzs`) | `insumos.parquet` |
-| `ideam_precipitacion.py` | Precipitación IDEAM (`s54a-sgyg`) | `ideam_precip.parquet` |
-| `ideam_temperatura.py` | Temperatura Máxima IDEAM (`ccvq-rp9s`) | `ideam_tmax.parquet` |
-| `chirps.py` | CHIRPS v2.0 mensual (`chc.ucsb.edu`) | `chirps/<año>/<mes>.nc` |
+### `_soda.py` — Cliente SODA paginado
+
+**Qué hace:** Cliente reutilizable para la API de `datos.gov.co`. La función `fetch_soda()` descarga datasets públicos del gobierno colombiano con paginación automática vía `$offset`/`$limit`.
+
+**Cómo lo hace:** Construye URLs secuenciales (`?$limit=50000&$offset=0`, luego `$offset=50000`, etc.), descarga páginas JSON hasta recibir una vacía. Soporta `$where` para filtrar por fecha y `$order` para orden determinista.
+
+**Por qué así:** SODA es la API oficial de datos abiertos Colombia. La paginación es necesaria porque los datasets tienen decenas de millones de filas y SODA no permite descargas completas sin paginar. Se usa JSON en vez de CSV aquí porque `_soda.py` es el módulo original; los scripts más nuevos (`ideam_precipitacion.py`, `ideam_temperatura.py`, `eva_calendario.py`) migraron a CSV/Excel directo por simplicidad.
 
 ---
 
-## Módulo compartido: `_soda.py`
+### `igac_municipios.py` — Geometría oficial de municipios
 
-Todos los scripts que consumen la API SODA (datos.gov.co) usan `fetch_soda()` de `_soda.py`.
-Esto evita duplicar el cliente HTTP y garantiza comportamiento uniforme:
-- Paginación automática con `$limit` / `$offset`
-- Token `X-App-Token` si `SODA_APP_TOKEN` está en el entorno
-- `$where` y `$order` opcionales para filtrar y ordenar
+**Qué hace:** Descarga la capa de polígonos municipales de Colombia con código DANE de 5 dígitos, nombre del municipio, departamento y geometría. Guarda como GeoPackage en `data/raw/municipios.gpkg`. Es el join base de todo el sistema — sin él, las estaciones IDEAM no tienen código municipal asignado.
 
----
+**Cómo lo hace:** Intenta primero el FeatureServer REST del DANE (MGN 2022). Si falla (timeout), cae a un GeoJSON en GitHub (`caticoa3/colombia_mapa`). Renombra columnas al esquema estándar del proyecto (codigo_municipio, nombre_municipio, etc.) y asegura CRS EPSG:4326.
 
-## Patrón de cada script
-
-1. **Idempotente**: si el archivo ya existe, no descarga de nuevo (salvo `--force`).
-2. **Sin lógica de negocio**: solo descarga y persiste. La limpieza ocurre en `src/features/`.
-3. **Errores como warnings**: los fallos de red se loguean y no detienen el pipeline.
-4. **Instancia global `config`**: todos importan `from config import config` (no instancian `IRAConfig` localmente).
+**Por qué así:** La fuente primaria (DANE) es la oficial, pero su servidor geográfico tiene disponibilidad irregular. El fallback en GitHub es un dataset MGN 2018 simplificado con los mismos campos base. Se usa GeoPackage porque preserve geometrías y es portátil. No se usa SQLite directo porque geopandas maneja la proyección y el renombre de columnas de forma más expresiva.
 
 ---
 
-## Correr la ingesta
+### `ideam_estaciones.py` — Catálogo de estaciones IDEAM
 
-```bash
-# Todo el pipeline en orden
-python scripts/run_ingestion.py
+**Qué hace:** Descarga el catálogo de estaciones meteorológicas del IDEAM (~9,600 estaciones) con nombre, código, latitud, longitud, departamento, municipio y tipo. Guarda en `data/raw/ideam_estaciones.parquet`.
 
-# Forzar re-descarga de todo
-python scripts/run_ingestion.py --force
+**Cómo lo hace:** Usa `_soda.fetch_soda()` con el dataset ID `hp9r-jxuu`. Es un dataset pequeño (~10K filas), una sola página SODA.
 
-# Solo un módulo
-python scripts/run_ingestion.py --only eva
-python scripts/run_ingestion.py --only precipitacion
+**Por qué así:** Es el dataset más chico del pipeline (~1 MB), no justifica una optimización de descarga. El catálogo se necesita temprano para el join espacial con municipios.
 
-# Script individual
-python src/ingestion/ideam_estaciones.py
-python src/ingestion/eva.py --force
-```
+---
+
+### `ideam_precipitacion.py` — Precipitación IDEAM
+
+**Qué hace:** Descarga observaciones diarias de precipitación del IDEAM (~280M filas total histórico). Filtra por los últimos 5 años para evitar el volumen completo. Guarda en `data/raw/ideam_precip.parquet`.
+
+**Cómo lo hace:** Descarga CSV directo desde la URL SODA (`/resource/s54a-sgyg.csv`) con `$where=fechaobservacion >= 'YYYY-MM-DD'` y `$limit=5000000`. Usa `pd.read_csv()` con `low_memory=False` para evitar warnings de tipos mixtos.
+
+**Por qué así:** Originalmente usaba paginación SODA JSON como los demás, pero la paginación de ~280M filas requería ~5,600 requests. El CSV directo reduce a 1 request por los datos filtrados, mucho más rápido. El `$limit=5000000` es el máximo que permite SODA — para el histórico completo habría que paginar por año o usar la API de descarga bulk.
+
+---
+
+### `ideam_temperatura.py` — Temperatura máxima IDEAM
+
+**Qué hace:** Descarga temperatura máxima diaria del IDEAM (~27M filas total). Filtra últimos 5 años. Guarda en `data/raw/ideam_tmax.parquet`.
+
+**Cómo lo hace:** Idéntico a precipitación pero con dataset `ccvq-rp9s`. Misma estrategia de CSV directo con filtro de fecha y `$limit`.
+
+**Por qué así:** Misma razón que precipitación: el CSV directo con filtro es más simple y rápido que paginar 540 requests JSON. La simetría entre ambos scripts facilita el mantenimiento.
+
+---
+
+### `ideam_humedad.py` — Humedad relativa IDEAM
+
+**Qué hace:** Descarga humedad relativa del aire (~87M filas total). Filtra últimos 5 años. Guarda en `data/raw/ideam_humedad.parquet`.
+
+**Cómo lo hace:** Usa `_soda.fetch_soda()` con dataset `uext-mhny`, paginación determinista con `$order=fechaobservacion`.
+
+**Por qué así:** Es un script más nuevo pero no migró a CSV directo porque no se probó aún si el endpoint CSV respeta `$order` para datasets grandes. Usa la paginación probada de `_soda.py`.
+
+---
+
+### `ideam_presion.py` — Presión atmosférica IDEAM
+
+**Qué hace:** Descarga presión atmosférica (~34M filas total). Filtra últimos 5 años. Guarda en `data/raw/ideam_presion.parquet`.
+
+**Cómo lo hace:** Usa `_soda.fetch_soda()` con dataset `62tk-nxj5` y filtro de fecha.
+
+**Por qué así:** Misma razón que humedad — usa el cliente SODA estándar porque no se ha validado el CSV endpoint para este dataset.
+
+---
+
+### `ideam_tambiente.py` — Temperatura ambiente IDEAM
+
+**Qué hace:** Descarga temperatura ambiente (media y mínima, ~90M filas total). Filtra últimos 5 años. Guarda en `data/raw/ideam_tambiente.parquet`.
+
+**Cómo lo hace:** Usa `_soda.fetch_soda()` con dataset `sbwg-7ju4`.
+
+**Por qué así:** Pendiente de migrar a CSV directo. Usa SODA paginado por consistencia.
+
+---
+
+### `eva.py` — Evaluaciones Agropecuarias Municipales
+
+**Qué hace:** Descarga dos datasets del EVA (Evaluaciones Agropecuarias Municipales) del Ministerio de Agricultura: el principal (`2pnw-mmge`, ~200K filas) con área sembrada, cosechada, producción y rendimiento por municipio/año/cultivo, y la vista auxiliar (`fp29-z39g`, ~170 filas). Guarda `eva.parquet` y `eva_vista.parquet`.
+
+**Cómo lo hace:** Usa `_soda.fetch_soda()` con cada dataset ID. El principal requiere paginación (~4 páginas de 50K).
+
+**Por qué así:** SODA es la fuente oficial y el dataset cabe en ~4 páginas, así que no justifica un mecanismo especial. EVA es la base del subíndice de Exposición Productiva (SEP).
+
+---
+
+### `eva_calendario.py` — Calendario de siembra UPRA
+
+**Qué hace:** Descarga el consolidado de calendarios de siembra y cosecha EVA desde la página de UPRA (Unidad de Planificación Rural Agropecuaria). Guarda en `data/raw/eva_calendario.parquet`.
+
+**Cómo lo hace:** Descarga un archivo Excel (.xlsx) directamente desde `upra.gov.co` con `requests.get()`, lo lee con `pd.read_excel()`, elimina columnas `Unnamed`, normaliza nombres a minúsculas y fuerza texto en columnas de tipo mixto antes de guardar como Parquet.
+
+**Por qué así:** UPRA publica el consolidado como Excel, no como dataset SODA. Intentar extraerlo de SODA daría datos desactualizados o incompletos. La descarga directa del Excel oficial es más confiable y simple. Requiere `openpyxl` para leer `.xlsx`.
+
+---
+
+### `insumos.py` — Índice de Insumos Agrícolas
+
+**Qué hace:** Descarga el índice de precios de insumos agrícolas del DANE/UPRA (88 filas). Guarda en `data/raw/insumos.parquet`.
+
+**Cómo lo hace:** Una sola página SODA con `_soda.fetch_soda()`, dataset `gwbi-fnzs`.
+
+**Por qué así:** Es un dataset minúsculo. SODA es adecuado y no requiere optimización.
+
+---
+
+### `chirps.py` — Precipitación histórica CHIRPS
+
+**Qué hace:** Descarga precipitación mensual global CHIRPS v2.0 desde 1991 hasta el mes anterior, como archivos NetCDF. Guarda en `data/raw/chirps/<año>/<mes>.nc`. La línea de base histórica (1991-presente) se usa en `features/clima.py` para calcular anomalías de precipitación.
+
+**Cómo lo hace:** Construye URLs del repositorio de UCSB (`chc.ucsb.edu`), descarga cada archivo mensual con `requests.get(stream=True)` en chunks de 1 MB. Solo descarga archivos faltantes (idempotente).
+
+**Por qué así:** CHIRPS es el producto estándar para precipitación histórica en zonas tropicales, con resolución de 0.05° (~5.5 km). UCSB no ofrece API de consulta — solo descarga directa de archivos NetCDF. Se elige NetCDF sobre GeoTIFF porque es el formato canónico de CHIRPS y permite acceso a bands temporales con xarray.
+
+---
+
+### `dane_municipios.py` — Variables socioeconómicas DANE
+
+**Qué hace:** Descarga NBI (Necesidades Básicas Insatisfechas) y población rural/urbana por municipio desde datos.gov.co. Guarda en `data/raw/dane_municipios.parquet`. Estas variables entran en el subíndice de Vulnerabilidad Económica (SVE).
+
+**Cómo lo hace:** Usa `_soda.fetch_soda()` con dataset `fjhr-4qb9` y filtro por año más reciente.
+
+**Por qué así:** No hay una API directa del DANE para estos indicadores. SODA ofrece el dataset oficial con la estructura tabular necesaria.
+
+---
+
+### `load_duckdb.py` — Carga a DuckDB
+
+**Qué hace:** Lee todos los archivos Parquet de `data/raw/` y los carga como tablas en `data/alerta.duckdb` con el prefijo `raw_`. Ejemplo: `ideam_precip.parquet` → `raw_precipitacion`.
+
+**Cómo lo hace:** Conecta a DuckDB con extensión espacial, itera sobre una lista de pares `(archivo_parquet, nombre_tabla)`, y ejecuta `CREATE OR REPLACE TABLE raw_xxx AS SELECT * FROM read_parquet('...')`.
+
+**Por qué así:** DuckDB es el motor analítico local — más rápido que pandas para consultas tipo SQL y soporta joins espaciales vía la extensión `spatial`. La carga con `CREATE OR REPLACE` asegura que las tablas siempre reflejen el último estado de `data/raw/`. Las extensiones `INSTALL spatial; LOAD spatial;` se ejecutan al conectar para permitir consultas geoespaciales en todos los módulos que usan `get_connection()`.
 
 ---
 
 ## Orden de ejecución
 
-El orquestador `scripts/run_ingestion.py` corre los pasos en este orden:
+El orquestador (`scripts/run_ingestion.py`) corre los módulos en este orden:
 
 ```
-1. estaciones    — pequeño, necesario para joins espaciales
-2. municipios    — shapefile DANE, necesario para spatial.py
-3. eva           — producción agrícola municipal
-4. eva_calendario— periodos de siembra y cosecha
-5. insumos       — índice mensual nacional (muy pequeño)
-6. precipitacion — ~280 M filas totales, filtrado a 5 años
-7. temperatura   — ~27 M filas totales, filtrado a 5 años
-8. chirps        — NetCDF mensuales desde 1991 (~400 MB)
+estaciones  →  municipios  →  eva  →  eva_calendario  →  insumos  →  dane  →
+precipitacion  →  temperatura  →  humedad  →  presion  →  tambiente  →  chirps
 ```
 
-Si un paso falla, se loguea el error y el pipeline **continúa** con el siguiente.
-
----
-
-## Notas sobre volúmenes
-
-- **Precipitación IDEAM**: ~280 M filas totales. El script filtra `fechaobservacion >= hace 5 años`.
-- **Temperatura IDEAM**: ~27 M filas totales. Misma estrategia.
-- **CHIRPS**: ~420 archivos NetCDF mensuales (1991–2026), ~1 MB por archivo. Descarga por streaming.
-- El resto son datasets pequeños que se descargan completos.
-
----
-
-## Variables de entorno
-
-| Variable | Requerida | Descripción |
-|---|---|---|
-| `SODA_APP_TOKEN` | No | Token Socrata para mayor rate limit en datos.gov.co |
+Dependencias lógicas:
+- `ideam_estaciones` + `igac_municipios` deben ejecutarse antes de `spatial.py` (en `src/features/`)
+- EVA, insumos y DANE son independientes y pueden correr en cualquier orden
+- CHIRPS va al final por ser la descarga más pesada (~400 MB)
+- `load_duckdb.py` se corre después de toda la ingesta para consolidar en DuckDB
