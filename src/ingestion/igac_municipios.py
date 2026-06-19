@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import io
 import logging
-import zipfile
 from pathlib import Path
 
 import geopandas as gpd
