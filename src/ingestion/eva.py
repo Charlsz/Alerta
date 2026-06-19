@@ -1,93 +1,53 @@
-"""Ingesta de datos EVA desde datos.gov.co (SODA API)."""
+"""Ingesta de datos EVA (Evaluaciones Agropecuarias Municipales) desde datos.gov.co."""
+from __future__ import annotations
+
 import argparse
 import logging
-import os
 from pathlib import Path
 
 import pandas as pd
-import requests
 
-from config import IRAConfig
+from config import config
+from src.ingestion._soda import fetch_soda
 
 logger = logging.getLogger(__name__)
 
-_SODA_BASE = "https://www.datos.gov.co/resource"
+# Resource IDs en datos.gov.co
+_EVA_ID = "2pnw-mmge"
+_EVA_VISTA_ID = "fp29-z39g"
 
 
-def _fetch_dataset(dataset_id: str, config: IRAConfig) -> pd.DataFrame:
-    """Download a full SODA dataset using pagination."""
-    headers = {}
-    app_token = os.getenv("SODA_APP_TOKEN")
-    if app_token:
-        headers["X-App-Token"] = app_token
-
-    limit = config.soda_page_size
-    offset = 0
-    records: list[dict] = []
-
-    while True:
-        url = f"{_SODA_BASE}/{dataset_id}.json?$limit={limit}&$offset={offset}"
-        try:
-            response = requests.get(url, headers=headers, timeout=120)
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            logger.warning("Download failed for %s at offset %s: %s", dataset_id, offset, exc)
-            break
-
-        batch = response.json()
-        if not batch:
-            break
-
-        records.extend(batch)
-        offset += limit
-
+def _save(records: list[dict], output_path: Path, label: str) -> None:
+    """Convierte lista de registros a Parquet y guarda en disco."""
     df = pd.DataFrame(records)
-    return df
-
-
-def _download_eva(config: IRAConfig, force: bool = False) -> None:
-    output_path = Path(config.data_raw) / "eva.parquet"
-    if output_path.exists() and not force:
-        logger.info("eva.parquet already exists. Skipping download.")
-        return
-
-    logger.info("Downloading EVA dataset (2pnw-mmge)...")
-    df = _fetch_dataset("2pnw-mmge", config)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
-    logger.info("Saved eva.parquet with %s rows to %s", len(df), output_path)
+    logger.info("[%s] %d filas guardadas en %s", label, len(df), output_path)
 
 
-def _download_eva_vista(config: IRAConfig, force: bool = False) -> None:
-    output_path = Path(config.data_raw) / "eva_vista.parquet"
-    if output_path.exists() and not force:
-        logger.info("eva_vista.parquet already exists. Skipping download.")
-        return
+def run(force: bool = False) -> None:
+    """Descarga EVA y EVA Vista a data/raw/."""
+    datasets = [
+        (_EVA_ID, Path(config.data_raw) / "eva.parquet", "EVA"),
+        (_EVA_VISTA_ID, Path(config.data_raw) / "eva_vista.parquet", "EVA Vista"),
+    ]
 
-    logger.info("Downloading EVA Vista dataset (fp29-z39g)...")
-    df = _fetch_dataset("fp29-z39g", config)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(output_path, index=False)
-    logger.info("Saved eva_vista.parquet with %s rows to %s", len(df), output_path)
-
-
-def run(config: IRAConfig, force: bool = False) -> None:
-    """Download EVA raw data and persist to data/raw/."""
-    _download_eva(config, force=force)
-    _download_eva_vista(config, force=force)
+    for dataset_id, output_path, label in datasets:
+        if output_path.exists() and not force:
+            logger.info("[%s] Ya existe %s, omitiendo.", label, output_path.name)
+            continue
+        records = fetch_soda(dataset_id, page_size=config.soda_page_size)
+        _save(records, output_path, label)
 
 
 def main() -> None:
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
-    parser = argparse.ArgumentParser(description="Ingest EVA datasets from datos.gov.co")
-    parser.add_argument("--force", action="store_true", help="Force re-download even if files exist")
+    parser = argparse.ArgumentParser(description="Descarga EVA desde datos.gov.co")
+    parser.add_argument("--force", action="store_true", help="Fuerza re-descarga")
     args = parser.parse_args()
-
-    config = IRAConfig()
-    run(config, force=args.force)
+    run(force=args.force)
 
 
 if __name__ == "__main__":
