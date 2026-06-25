@@ -46,6 +46,7 @@ STEPS = {
         ("predict",    "src.risk.predict_rendimiento"),
         ("anomaly",    "src.risk.anomaly"),
         ("ira",        "src.risk.ira"),
+        ("store_risk", "src.risk.store_risk"),
     ],
 }
 
