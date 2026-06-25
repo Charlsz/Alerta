@@ -1,7 +1,6 @@
 """Ingesta del Índice de Precios de Insumos Agrícolas (UPRA) desde datos.gov.co."""
 from __future__ import annotations
 
-import argparse
 import logging
 from pathlib import Path
 
@@ -30,16 +29,3 @@ def run(force: bool = False) -> None:
     df.to_parquet(output_path, index=False)
     logger.info("[Índice Insumos] %d filas guardadas en %s", len(df), output_path)
 
-
-def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
-    parser = argparse.ArgumentParser(description="Descarga índice de insumos agrícolas")
-    parser.add_argument("--force", action="store_true", help="Fuerza re-descarga")
-    args = parser.parse_args()
-    run(force=args.force)
-
-
-if __name__ == "__main__":
-    main()

@@ -14,7 +14,6 @@ de precipitación vs. la línea de base histórica.
 """
 from __future__ import annotations
 
-import argparse
 import logging
 from pathlib import Path
 
@@ -101,18 +100,3 @@ def run(force: bool = False) -> None:
         failed,
     )
 
-
-def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
-    parser = argparse.ArgumentParser(
-        description="Descarga precipitación histórica CHIRPS (mensual, desde 1991)"
-    )
-    parser.add_argument("--force", action="store_true", help="Fuerza re-descarga")
-    args = parser.parse_args()
-    run(force=args.force)
-
-
-if __name__ == "__main__":
-    main()

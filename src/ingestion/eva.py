@@ -1,7 +1,6 @@
 """Ingesta de datos EVA (Evaluaciones Agropecuarias Municipales) desde datos.gov.co."""
 from __future__ import annotations
 
-import argparse
 import logging
 from pathlib import Path
 
@@ -39,16 +38,3 @@ def run(force: bool = False) -> None:
         records = fetch_soda(dataset_id, page_size=config.soda_page_size)
         _save(records, output_path, label)
 
-
-def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
-    parser = argparse.ArgumentParser(description="Descarga EVA desde datos.gov.co")
-    parser.add_argument("--force", action="store_true", help="Fuerza re-descarga")
-    args = parser.parse_args()
-    run(force=args.force)
-
-
-if __name__ == "__main__":
-    main()

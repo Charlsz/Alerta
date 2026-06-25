@@ -13,10 +13,13 @@ import logging
 import pandas as pd
 
 from config import config
-from src.features.normalize import ALL_FEATURE_COLS, _SEP_COLS, _SPC_COLS, _SVE_COLS
+from src.features.normalize import ALL_FEATURE_COLS, _SEP_COLS, _SPC_COLS, _SVE_COLS, normalize
+from src.ingestion.load_duckdb import get_connection
 from src.risk.classify import classify_ira
 
 logger = logging.getLogger(__name__)
+
+_TABLE = "ira_scores"
 
 
 def compute_subindices(df: pd.DataFrame) -> pd.DataFrame:
@@ -26,12 +29,10 @@ def compute_subindices(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
-    # Sub-índices como promedio de sus variables (NaN se ignoran con nanmean)
     df["spc"] = df[[c for c in _SPC_COLS if c in df.columns]].mean(axis=1, skipna=True)
     df["sep"] = df[[c for c in _SEP_COLS if c in df.columns]].mean(axis=1, skipna=True)
     df["sve"] = df[[c for c in _SVE_COLS if c in df.columns]].mean(axis=1, skipna=True)
 
-    # IRA ponderado
     df["ira_score"] = (
         config.w_spc * df["spc"]
         + config.w_sep * df["sep"]
@@ -46,3 +47,37 @@ def compute_subindices(df: pd.DataFrame) -> pd.DataFrame:
         df["ira_nivel"].value_counts().to_string(),
     )
     return df
+
+
+def build(force: bool = False) -> None:
+    """Lee features_municipio_cultivo, normaliza, calcula IRA y guarda en DuckDB."""
+    con = get_connection()
+
+    if not force:
+        exists = con.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
+            [_TABLE],
+        ).fetchone()[0]
+        if exists:
+            logger.info("[IRA] '%s' ya existe, omitiendo.", _TABLE)
+            con.close()
+            return
+
+    logger.info("[IRA] Leyendo features_municipio_cultivo...")
+    df = con.execute("SELECT * FROM features_municipio_cultivo").df()
+    if df.empty:
+        logger.error("[IRA] features_municipio_cultivo vacía.")
+        con.close()
+        return
+
+    key_cols = ["codigo_municipio", "cultivo", "periodo"]
+    keys = df[key_cols].copy()
+    features = normalize(df)
+
+    result = compute_subindices(features)
+    result = pd.concat([keys, result[["spc", "sep", "sve", "ira_score", "ira_nivel"]]], axis=1)
+
+    con.execute(f"CREATE OR REPLACE TABLE {_TABLE} AS SELECT * FROM result")
+    (rows,) = con.execute(f"SELECT COUNT(*) FROM {_TABLE}").fetchone()
+    logger.info("[IRA] '%s' creada: %d filas.", _TABLE, rows)
+    con.close()

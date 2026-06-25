@@ -1,5 +1,4 @@
 """Ingesta de precipitación IDEAM desde datos.gov.co (CSV directo)."""
-import argparse
 import datetime
 import io
 import logging
@@ -54,18 +53,3 @@ def run(force: bool = False) -> None:
     else:
         logger.info("[Precipitación IDEAM] %d filas guardadas en %s", len(df), output_path)
 
-
-def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-    parser = argparse.ArgumentParser(description="Descarga precipitación IDEAM")
-    parser.add_argument("--force", action="store_true", help="Fuerza re-descarga")
-    args = parser.parse_args()
-
-    run(force=args.force)
-
-
-if __name__ == "__main__":
-    main()

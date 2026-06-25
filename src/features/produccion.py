@@ -1,6 +1,6 @@
 """Variables de producción agrícola (Sub-índice de Exposición Productiva — SEP).
 
-Fuente: tablas DuckDB `raw_eva` y `raw_eva_calendario`.
+Fuente: tablas DuckDB `clean_eva` y `clean_eva_calendario`.
 
 Variables que construye:
     area_sembrada, area_cosechada, rendimiento_promedio, rendimiento_cv,
@@ -35,7 +35,7 @@ def _build_rendimiento(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             END                             AS rendimiento_cv,
             SUM(CAST(area_sembrada  AS DOUBLE)) AS area_sembrada,
             SUM(CAST(area_cosechada AS DOUBLE)) AS area_cosechada
-        FROM raw_eva
+        FROM clean_eva
         WHERE rendimiento    IS NOT NULL
           AND codigo_municipio IS NOT NULL
           AND cultivo          IS NOT NULL
@@ -60,11 +60,11 @@ def _build_fase_fenologica(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
                 TRIM(codigo_municipio)      AS codigo_municipio,
                 CAST(mes_siembra  AS INT)   AS mes_siembra,
                 CAST(mes_cosecha  AS INT)   AS mes_cosecha
-            FROM raw_eva_calendario
+            FROM clean_eva_calendario
             WHERE cultivo IS NOT NULL
         """).df()
     except Exception:  # noqa: BLE001
-        logger.warning("[produccion] raw_eva_calendario no disponible, fase_fenologica = NULL.")
+        logger.warning("[produccion] clean_eva_calendario no disponible, fase_fenologica = NULL.")
         return pd.DataFrame(columns=["cultivo", "codigo_municipio", "mes_siembra", "mes_cosecha"])
     return df
 

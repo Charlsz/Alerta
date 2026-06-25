@@ -13,7 +13,6 @@ Dataset ID: fjhr-4qb9  (NBI municipal por cabecera/resto)
 """
 from __future__ import annotations
 
-import argparse
 import logging
 from pathlib import Path
 
@@ -98,14 +97,3 @@ def run(force: bool = False) -> None:
     out.to_parquet(output_path, index=False)
     logger.info("[DANE municipios] %d municipios guardados en %s", len(out), output_path)
 
-
-def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    parser = argparse.ArgumentParser(description="Descarga variables socioeconómicas DANE")
-    parser.add_argument("--force", action="store_true")
-    args = parser.parse_args()
-    run(force=args.force)
-
-
-if __name__ == "__main__":
-    main()

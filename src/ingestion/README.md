@@ -149,7 +149,7 @@ Cada script es independiente, idempotente y expone `run(force=False)` para el or
 
 ## Orden de ejecución
 
-El orquestador (`scripts/run_ingestion.py`) corre los módulos en este orden:
+El orquestador (`scripts/run.py ingest`) corre los módulos en este orden:
 
 ```
 estaciones  →  municipios  →  eva  →  eva_calendario  →  insumos  →  dane  →
