@@ -67,7 +67,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-src/web/dist/
+src/web/.next/
 *.local
 .vite/
 
