@@ -1,4 +1,4 @@
-.PHONY: help install ingest features risk web pipeline test lint
+.PHONY: help install ingest features risk api web pipeline test lint
 
 # ── Ayuda ─────────────────────────────────────────────────────────────────────
 help:  ## Muestra esta ayuda
@@ -23,6 +23,9 @@ risk:  ## Calcula IRA, anomalías y explicabilidad
 pipeline: ingest features risk  ## Corre el pipeline completo end-to-end
 
 # ── Servicios ─────────────────────────────────────────────────────────────────
+api:  ## Inicia la API FastAPI en modo desarrollo
+	uvicorn src.api.main:app --reload --port 8000
+
 web:  ## Inicia el frontend Next.js en modo desarrollo
 	cd src/web && npm run dev
 
