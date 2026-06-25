@@ -19,7 +19,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from config import config
-from src.features.normalize import ALL_FEATURE_COLS
+from src.features.normalize import ALL_FEATURE_COLS, normalize
+from src.ingestion.load_duckdb import get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -101,3 +102,40 @@ def train_and_score(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[mask, "is_anomaly"]    = predictions == -1
 
     return df
+
+
+_TABLE = "anomaly_scores"
+
+
+def build(force: bool = False) -> None:
+    """Lee features_municipio_cultivo, normaliza, entrena IsolationForest y guarda."""
+    con = get_connection()
+
+    if not force:
+        exists = con.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
+            [_TABLE],
+        ).fetchone()[0]
+        if exists:
+            logger.info("[anomaly] '%s' ya existe, omitiendo.", _TABLE)
+            con.close()
+            return
+
+    logger.info("[anomaly] Leyendo features_municipio_cultivo...")
+    df = con.execute("SELECT * FROM features_municipio_cultivo").df()
+    if df.empty:
+        logger.error("[anomaly] features_municipio_cultivo vacía.")
+        con.close()
+        return
+
+    key_cols = ["codigo_municipio", "cultivo", "periodo"]
+    keys = df[key_cols].copy()
+    features = normalize(df)
+
+    result = train_and_score(features)
+    result = pd.concat([keys, result[["anomaly_score", "is_anomaly"]]], axis=1)
+
+    con.execute(f"CREATE OR REPLACE TABLE {_TABLE} AS SELECT * FROM result")
+    (rows,) = con.execute(f"SELECT COUNT(*) FROM {_TABLE}").fetchone()
+    logger.info("[anomaly] '%s' creada: %d filas.", _TABLE, rows)
+    con.close()
