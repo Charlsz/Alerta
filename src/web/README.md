@@ -1,24 +1,23 @@
 # src/web/ — Frontend (Next.js)
 
-Aplicación React con Next.js App Router para visualizar resultados de riesgo climático agrícola.
+Aplicación React con Next.js App Router para visualizar resultados de riesgo climático agrícola, con asistente IA y reportes PDF.
 
 ## Archivos
 
 | Archivo | Propósito |
 |---------|-----------|
 | `package.json` | Dependencias: next, react, react-dom |
-| `next.config.mjs` | Proxy `/api/*` al backend, output standalone |
-| `jsconfig.json` | Alias `@/` para imports absolutos |
-| `Dockerfile` | Imagen para docker-compose (dev) |
+| `Dockerfile` | Imagen para docker-compose |
 | `app/layout.jsx` | Root layout con metadata global |
 | `app/page.jsx` | Página principal: FilterBar + Map + Ranking |
 | `app/globals.css` | Estilos base |
-| `app/components/FilterBar.jsx` | Filtros (cultivo, mes, departamento) |
-| `app/components/Map.jsx` | Mapa de riesgo municipal |
+| `app/components/FilterBar.jsx` | Filtros (cultivo, departamento) |
+| `app/components/Map.jsx` | Mapa de riesgo municipal (Leaflet) |
 | `app/components/Ranking.jsx` | Tabla de ranking municipio–cultivo |
-| `app/components/MunicipioCard.jsx` | Ficha detallada por municipio |
+| `app/components/MunicipioCard.jsx` | Ficha detallada por municipio + chat asistente IA |
 | `app/components/RiskBadge.jsx` | Insignia visual de nivel de riesgo |
 | `app/hooks/useAPI.js` | Hook genérico para llamadas a la API |
+| `app/reporte/[codigo]/page.jsx` | Página de reporte ejecutivo imprimible/PDF con análisis generado por IA |
 
 ## Desarrollo
 

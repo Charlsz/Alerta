@@ -2,6 +2,17 @@
 
 Lo que falta para completar el proyecto según la visión de Alerta. Priorizado por impacto y esfuerzo.
 
+## ✅ Completado
+
+| Feature | Estado | Implementado en |
+|---------|--------|-----------------|
+| Asistente conversacional (LLM) | ✅ | `POST /api/municipio/{codigo}/chat` + chat UI en MunicipioCard |
+| Reportes PDF automatizados con IA | ✅ | `src/web/app/reporte/[codigo]/page.jsx` con generación vía LLM |
+| XGBoost | ✅ | `requirements.txt` (el pipeline lo usa automáticamente si está instalado) |
+| Despliegue público (Docker) | ✅ | `Dockerfile` + `src/web/Dockerfile` + `docker-compose.yml` |
+| Pipeline automático semanal | ✅ | `.github/workflows/pipeline.yml` con cron semanal + dispatch manual |
+| Endpoint /api/status | ✅ | Muestra última actualización y estado del pipeline |
+
 ## Crítico — Datos rotos o ausentes
 
 ### 1. Reemplazar CHIRPS con NASA POWER o ERA5-Land
@@ -51,21 +62,7 @@ Lo que falta para completar el proyecto según la visión de Alerta. Priorizado 
 
 ## Medio — Mejora de calidad del modelo
 
-### 4. Instalar XGBoost
-
-**Problema:** El pipeline detecta si XGBoost está instalado. Si no, usa RandomForestRegressor como fallback. Con XGBoost los modelos de predicción de rendimiento serían más precisos.
-
-**Camino sugerido:**
-```bash
-pip install xgboost
-```
-El pipeline lo usa automáticamente. No requiere cambios de código.
-
-**Archivos a tocar:** `requirements.txt`
-
----
-
-### 5. Calibrar pesos del IRA con datos reales
+### 4. Calibrar pesos del IRA con datos reales
 
 **Problema:** Hoy los pesos del IRA son fijos (SPC=0.5, SEP=0.3, SVE=0.2) definidos en `config.py`. Idealmente deberían calibrarse con datos históricos de pérdidas agrícolas reales.
 
@@ -81,7 +78,7 @@ El pipeline lo usa automáticamente. No requiere cambios de código.
 
 ---
 
-### 6. Deforestación (2 datasets)
+### 5. Deforestación (2 datasets)
 
 **Problema:** Los datasets `cqcx-tjpz` (deforestación por año) y `em23-mwhw` (causas de deforestación) están identificados pero no se descargan ni integran.
 
@@ -97,7 +94,7 @@ El pipeline lo usa automáticamente. No requiere cambios de código.
 
 ## Bajo — Frontend y UX
 
-### 7. Mostrar SHAP y tendencias en la UI
+### 6. Mostrar SHAP y tendencias en la UI
 
 **Problema:** `importancia_top3` se calcula en `predict_rendimiento.py` y se guarda en `ira_resultados`, pero el frontend no lo renderiza. Tampoco hay gráfico de tendencia de los últimos 4 trimestres.
 
@@ -110,29 +107,45 @@ El pipeline lo usa automáticamente. No requiere cambios de código.
 
 ---
 
-### 8. Despliegue público
+## Nuevo — Nivel Avanzado (pendiente)
 
-**Problema:** Hoy el proyecto corre solo en localhost. Para cumplir el objetivo del concurso necesita ser accesible sin conocimientos técnicos.
+### 7. Datos satelitales NDVI
+
+**Problema:** El proyecto no integra datos no estructurados (imágenes satelitales). El NDVI (Índice de Vegetación de Diferencia Normalizada) es un predictor clave para rendimiento agrícola.
 
 **Camino sugerido:**
-1. Unificar API + frontend en `docker-compose.yml`.
-2. Desplegar en Render, Railway o VPS propio.
-3. Configurar dominio (opcional).
-4. Agregar GitHub Actions que verifique que el deploy no se rompe.
+1. Integrar Sentinel Hub o MODIS NDVI vía API.
+2. Crear `src/ingestion/satelital.py` que descargue NDVI promedio por municipio.
+3. Agregar variable `ndvi_media_30d` al SPC.
+4. Evaluar si se justifica una CNN para clasificación de imágenes.
+
+**Archivos a tocar:** `src/ingestion/satelital.py` (nuevo), `src/features/clima.py`, `scripts/run.py`
 
 ---
 
-## Automatización
+### 8. LSTM para series climáticas
 
-### 9. Pipeline automático semanal
-
-**Problema:** Hoy el pipeline corre manualmente con `python scripts/run.py`. Para que sea autónomo necesita un scheduler.
+**Problema:** Las variables climáticas se agregan como promedios/anomalías simples. Un LSTM podría capturar patrones secuenciales y mejorar la predicción de rendimiento.
 
 **Camino sugerido:**
-1. Crear `.github/workflows/pipeline.yml` con trigger `cron: '0 5 * * 1'`.
-2. Alternativa: cron en el servidor de despliegue que ejecute `make pipeline`.
+1. Crear `src/risk/lstm_rendimiento.py` con PyTorch o TensorFlow.
+2. Entrenar modelo secuencial con ventanas de 12 meses de datos climáticos diarios.
+3. Comparar rendimiento vs. RandomForest/XGBoost actual.
+4. Integrar como modelo alternativo o ensamble.
 
-**Nota:** GitHub Actions no es práctico para el pipeline completo (datos grandes, sin persistencia entre runs). Un cron en el servidor de despliegue es más realista.
+**Archivos a tocar:** `src/risk/lstm_rendimiento.py` (nuevo), `src/risk/predict_rendimiento.py`, `requirements.txt`
+
+---
+
+### 9. Sistema multiagente
+
+**Problema:** El proyecto es monolítico. Un sistema multiagente permitiría monitoreo autónomo, alertas proactivas y recomendaciones personalizadas.
+
+**Camino sugerido:**
+1. Agente de monitoreo: verifica nuevas estaciones IDEAM cada hora.
+2. Agente de alertas: dispara notificaciones cuando el IRA supera umbrales.
+3. Agente de recomendaciones: sugiere acciones de mitigación por cultivo/municipio.
+4. Agente de reportes: genera reportes periódicos automáticos.
 
 ---
 
@@ -140,12 +153,16 @@ El pipeline lo usa automáticamente. No requiere cambios de código.
 
 | Prioridad | Tarea | Esfuerzo estimado | Dependencias |
 |---|---|---|---|
+| ✅ | Chat LLM + Reportes PDF | Completado | — |
+| ✅ | XGBoost | Completado | — |
+| ✅ | Docker + docker-compose | Completado | — |
+| ✅ | GitHub Actions cron | Completado | — |
 | Crítico | NASA POWER / ERA5-Land | 2-3 días | Investigar API |
 | Crítico | DANE NBI | 1 día | Descargar Excel |
 | Crítico | Viento IDEAM | 1 día | Ninguna |
-| Medio | XGBoost | 5 minutos | Ninguna |
 | Medio | Calibrar pesos IRA | 3-5 días | Encontrar dataset MADR |
 | Medio | Deforestación | 1 día | Verificar columnas |
 | Bajo | SHAP + tendencias UI | 2 días | Ninguna |
-| Bajo | Despliegue público | 1-2 días | Docker |
-| Bajo | Pipeline automático | 1 día | Despliegue previo |
+| Nuevo | NDVI satelital | 3-5 días | API clave / presupuesto |
+| Nuevo | LSTM series climáticas | 5-7 días | PyTorch/TensorFlow |
+| Nuevo | Sistema multiagente | 5-7 días | Definir objetivos |

@@ -8,6 +8,8 @@ Este proyecto integra datos meteorológicos, productivos, territoriales y socioe
 
 El sistema está diseñado para anticipar pérdidas de cosecha antes de que ocurran, cuando todavía hay tiempo para actuar.
 
+Incluye un **asistente conversacional con IA** que explica el riesgo de cada municipio en lenguaje natural y genera **reportes ejecutivos automatizados en PDF** con análisis y recomendaciones de mitigación.
+
 ## Enunciado del reto
 
 **Agricultura y Desarrollo Rural — Datos Abiertos Colombia, Nivel Avanzado**
@@ -76,11 +78,15 @@ Cada sub-índice se normaliza entre 0 y 1 antes de combinarlos. El IRA final se 
 
 ### Componente de IA
 
-Sobre el IRA base se aplican dos modelos:
+Sobre el IRA base se aplican cuatro componentes de inteligencia artificial:
 
 1. **Detección de anomalías multivariadas (IsolationForest)** — entrenado por cultivo para identificar municipios que presentan combinaciones inusuales de variables climáticas, productivas y económicas. Si un cultivo tiene menos de 50 muestras, se usa un modelo global.
 
-2. **Predicción de rendimiento (RandomForestRegressor)** — predice el rendimiento esperado (t/ha) del próximo ciclo agrícola por municipio y cultivo usando 22 variables predictoras. Cada cultivo con ≥50 muestras recibe su propio modelo; cultivos pequeños usan un modelo global. La importancia de variables se explica vía SHAP, permitiendo al usuario entender qué factores disparan la alerta en cada municipio.
+2. **Predicción de rendimiento (RandomForest/XGBoost)** — predice el rendimiento esperado (t/ha) del próximo ciclo agrícola por municipio y cultivo usando 22 variables predictoras. Cada cultivo con ≥50 muestras recibe su propio modelo; cultivos pequeños usan un modelo global. La importancia de variables se explica vía SHAP, permitiendo al usuario entender qué factores disparan la alerta en cada municipio.
+
+3. **Asistente conversacional (LLM via OpenRouter)** — por cada municipio, el usuario puede hacer preguntas en lenguaje natural sobre el nivel de riesgo, los componentes del IRA, la predicción de rendimiento y recibir recomendaciones de mitigación. Usa `openrouter/owl-alpha` (modelo gratuito) con contexto completo de los datos del municipio.
+
+4. **Generación de reportes ejecutivos (IA generativa)** — el LLM produce un reporte estructurado con análisis de riesgo, desglose de componentes, predicción de rendimiento y recomendaciones concretas, renderizado como página imprimible/PDF.
 
 ## Fuentes de datos implementadas
 
@@ -128,8 +134,10 @@ Sobre el IRA base se aplican dos modelos:
 - **Ingesta**: scripts independientes descargan datos de IDEAM, EVA, UPRA, IGAC → Parquet
 - **Feature engineering**: DuckDB SQL construye tablas limpias y 26 variables por municipio × cultivo
 - **Riesgo**: IRA + IsolationForest + RandomForest para predicción de rendimiento
-- **API**: FastAPI con 4 endpoints REST
-- **Frontend**: Next.js 15 con Leaflet para mapa interactivo
+- **API**: FastAPI con 6 endpoints REST (filters, ranking, municipios, municipio detalle, chat LLM, status)
+- **Frontend**: Next.js 15 con Leaflet para mapa interactivo, chat asistente, reportes PDF
+- **LLM**: OpenRouter API (modelo `openrouter/owl-alpha`) para asistente conversacional y generación de reportes
+- **Automatización**: GitHub Actions (cron semanal) + Docker Compose
 
 ## Herramientas y tecnologías
 
@@ -140,26 +148,38 @@ Sobre el IRA base se aplican dos modelos:
 - GeoPandas + Shapely
 
 ### Modelado y analítica
-- Scikit-learn (IsolationForest, RandomForest, cross-validation)
+- Scikit-learn (IsolationForest, RandomForest, XGBoost, cross-validation)
 - Joblib (persistencia de modelos)
 - SHAP (explicabilidad de modelos)
+
+### Inteligencia Artificial generativa
+- OpenRouter API (modelo `openrouter/owl-alpha`)
+- Integración LLM para chat conversacional y reportes automatizados
 
 ### Backend y API
 - FastAPI + Uvicorn
 - DuckDB (conexión directa, sin ORM)
+- 6 endpoints REST
 
 ### Frontend y visualización
 - Next.js 15 (App Router)
 - React 19
 - Leaflet (mapas interactivos)
+- Chat asistente con IA
+- Reportes PDF imprimibles
 
-### Orquestación
+### Orquestación y despliegue
 - Makefile (comandos agrupados)
 - Script único `scripts/run.py` con pasos `ingest`, `features`, `risk`
+- Docker Compose (API + frontend)
+- GitHub Actions (pipeline automático semanal)
 
 ## Cómo ejecutar
 
 ```bash
+# 0. Configurar API key para el asistente IA (opcional para chat/reportes)
+# Copiar .env.example a .env y agregar OPENROUTER_API_KEY
+
 # 1. Instalar dependencias
 make install
 
@@ -176,16 +196,22 @@ make api              # uvicorn en :8000
 make web              # Next.js en :3000
 
 # 4. Abrir navegador en http://localhost:3000
+
+# 5. (Opcional) Iniciar con Docker
+make docker-build && make docker-up
 ```
 
 ## Endpoints de la API
 
 | Método | Ruta | Descripción |
-|---|---|---|
+|---|---|---|---|
+| GET | `/api/status` | Estado del pipeline y última actualización de datos |
 | GET | `/api/filters` | Cultivos y departamentos disponibles |
 | GET | `/api/ranking` | Ranking paginado municipio–cultivo por IRA |
 | GET | `/api/municipios` | GeoJSON con último IRA por municipio (1.122 features) |
 | GET | `/api/municipio/{codigo}` | Historial completo por municipio y cultivo |
+| POST | `/api/municipio/{codigo}/chat` | Pregunta al asistente IA sobre el municipio |
+| GET | `/reporte/{codigo}` | Reporte ejecutivo imprimible/PDF (frontend) |
 
 ## Salidas del pipeline
 
@@ -218,8 +244,10 @@ make web              # Next.js en :3000
 
 ## Roadmap
 
-Ver [ROADMAP.md](ROADMAP.md) para el detalle de lo que falta implementar: NASA POWER para anomalías de precipitación, DANE NBI, viento IDEAM, XGBoost, calibración de pesos del IRA, despliegue público y automatización.
+Ver [ROADMAP.md](ROADMAP.md) para el detalle de lo que falta implementar: reparar fuentes de datos rotas (CHIRPS, NBI), viento IDEAM, calibración de pesos del IRA, datos satelitales NDVI, deep learning para series climáticas y sistemas multiagente.
 
 ## Notas
 
 Este repositorio documenta el desarrollo técnico y metodológico de la solución presentada al concurso de Datos Abiertos de Colombia. El alcance, las fuentes y las herramientas se ajustaron durante la implementación según disponibilidad, calidad y utilidad analítica de los datos.
+
+El asistente conversacional requiere una API key de OpenRouter configurada en `.env` como `OPENROUTER_API_KEY`. Sin ella, el chat y los reportes PDF muestran un mensaje de configuración pendiente; el resto de la plataforma funciona sin cambios.

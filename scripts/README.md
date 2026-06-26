@@ -31,3 +31,9 @@ load_duckdb → clean → spatial → produccion → clima → vulnerabilidad �
 
 ### `risk` — Calcula IRA, anomalías, predicciones de rendimiento
 predict → anomaly → ira → store_risk
+
+## Automatización
+
+El pipeline puede ejecutarse automáticamente cada semana mediante GitHub Actions:
+`.github/workflows/pipeline.yml` (cron: lunes 5AM). También soporta `workflow_dispatch`
+para ejecución manual desde la interfaz de GitHub.

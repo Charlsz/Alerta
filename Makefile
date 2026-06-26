@@ -35,3 +35,13 @@ test:  ## Corre todos los tests con pytest
 
 lint:  ## Verifica estilo de código con ruff
 	ruff check src/ scripts/ config.py
+
+# ── Docker ─────────────────────────────────────────────────────────────────────
+docker-build:  ## Construye imágenes Docker
+	docker compose build
+
+docker-up:  ## Inicia servicios con Docker
+	docker compose up -d
+
+docker-down:  ## Detiene servicios Docker
+	docker compose down

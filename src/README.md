@@ -2,7 +2,7 @@
 
 | Carpeta | Propósito |
 |---------|-----------|
-| `api/` | API REST FastAPI — 4 endpoints: filters, ranking, municipios (GeoJSON), municipio detalle |
+| `api/` | API REST FastAPI — 6 endpoints: status, filters, ranking, municipios (GeoJSON), municipio detalle, chat LLM |
 | `features/` | Feature engineering: construye variables e indicadores en DuckDB |
 | `ingestion/` | Descarga datos crudos desde fuentes externas a `data/raw/` |
 | `risk/` | Motor de riesgo: IRA, anomalías, predicción de rendimiento |
