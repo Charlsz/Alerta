@@ -45,6 +45,7 @@ data/processed/*
 data/features/*
 data/alerta.duckdb
 data/alerta.db
+data/warehouse.db
 data/models/
 !data/raw/.gitkeep
 !data/processed/.gitkeep

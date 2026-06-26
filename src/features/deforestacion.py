@@ -101,7 +101,7 @@ def _find_fuzzy_match(key: str, name_map: dict[str, str], all_names: set[str]) -
 
 
 def _json_path(name: str) -> Path:
-    return Path("data") / f"raw_gfw_subnational_2_{name}.json"
+    return Path("data/raw") / f"raw_gfw_subnational_2_{name}.json"
 
 
 def _load_loss_data() -> pd.DataFrame:
