@@ -63,7 +63,7 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     for col in ALL_FEATURE_COLS:
         if col not in df.columns or df[col].isna().all():
-            logger.warning("[normalize] Columna '%s' ausente o toda NaN → 0.", col)
+            logger.warning("[normalize] Columna '%s' ausente o toda NaN -> 0.", col)
             df[col] = 0.0
             continue
 

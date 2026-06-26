@@ -38,7 +38,7 @@ def _load_estaciones() -> gpd.GeoDataFrame:
     # Las columnas de lat/lon pueden llamarse diferente según la versión del dataset
     lat_col = next((c for c in df.columns if "latit" in c), None)
     lon_col = next((c for c in df.columns if "longit" in c), None)
-    id_col  = next((c for c in df.columns if "codigo" in c and "estacion" in c), "codigoestacion")
+    id_col  = next((c for c in df.columns if "codigo" in c), "codigoestacion")
 
     if not lat_col or not lon_col:
         raise ValueError(f"No se encontraron columnas lat/lon en estaciones. Columnas: {list(df.columns)}")
@@ -99,4 +99,16 @@ def build(force: bool = False) -> None:
     con.execute(f"CREATE OR REPLACE TABLE {_TABLE} AS SELECT * FROM result")
     (rows,) = con.execute(f"SELECT COUNT(*) FROM {_TABLE}").fetchone()  # type: ignore[misc]
     logger.info("[spatial] Tabla '%s' creada: %d filas.", _TABLE, rows)
+
+
+    # Guardar geometrías de municipios (polígonos) para el API GeoJSON
+    _TABLE_GEOM = "municipios_geom"
+    municipios_geo = municipios[["codigo_municipio", "nombre_municipio",
+                                 "codigo_departamento", "nombre_departamento", "geometry"]].copy()
+    import shapely
+    municipios_geo["geom"] = municipios_geo.geometry.apply(shapely.to_geojson)
+    municipios_geo = municipios_geo.drop(columns=["geometry"])
+    con.execute(f"CREATE OR REPLACE TABLE {_TABLE_GEOM} AS SELECT * FROM municipios_geo")
+    (rows,) = con.execute(f"SELECT COUNT(*) FROM {_TABLE_GEOM}").fetchone()
+    logger.info("[spatial] Tabla '%s' creada: %d filas.", _TABLE_GEOM, rows)
     con.close()

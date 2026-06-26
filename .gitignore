@@ -38,11 +38,14 @@ venv.bak/
 *.ipynb_checkpoints
 
 # -----------------------------------------------------------------------------
-# Data (ignorado salvo muestras explícitas)
+# Data (ignorado salvo muestras explA-citas)
 # -----------------------------------------------------------------------------
 data/raw/*
 data/processed/*
 data/features/*
+data/alerta.duckdb
+data/alerta.db
+data/models/
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/features/.gitkeep

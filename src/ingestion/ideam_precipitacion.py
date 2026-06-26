@@ -44,7 +44,7 @@ def run(force: bool = False) -> None:
         min_date = df["fechaobservacion"].min()
         max_date = df["fechaobservacion"].max()
         logger.info(
-            "[Precipitación IDEAM] %d filas | %s → %s | %s",
+            "[Precipitacion IDEAM] %d filas | %s -> %s | %s",
             len(df),
             min_date.date() if pd.notna(min_date) else "N/A",
             max_date.date() if pd.notna(max_date) else "N/A",

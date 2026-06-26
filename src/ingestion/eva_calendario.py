@@ -26,10 +26,14 @@ def run(force: bool = False) -> None:
     logger.info("[EVA Calendario] Descargando desde UPRA...")
     resp = requests.get(_URL, timeout=60)
     resp.raise_for_status()
-    df = pd.read_excel(io.BytesIO(resp.content))
-    # Drop unnamed/index columns that cause Parquet type issues
-    df = df.loc[:, ~df.columns.str.contains("^Unnamed", case=False)]
+    df = pd.read_excel(
+        io.BytesIO(resp.content),
+        sheet_name="CNal",
+        header=4,
+    )
     df.columns = [c.lower().strip() for c in df.columns]
+    # Drop rows where all core columns are NaN (footer notes)
+    df = df.dropna(subset=["código cultivo", "cultivo"], how="all")
     for col in df.select_dtypes(include="object").columns:
         df[col] = df[col].astype(str)
     output_path.parent.mkdir(parents=True, exist_ok=True)

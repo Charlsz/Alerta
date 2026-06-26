@@ -96,13 +96,13 @@ def get_municipios():
     rows = con.execute("""
         SELECT r.codigo_municipio, m.nombre_municipio, m.nombre_departamento,
                r.ira_score, r.ira_nivel, r.cultivo, r.periodo,
-               ST_AsGeoJSON(m.geom) as geom
+               m.geom as geom
         FROM (
             SELECT DISTINCT ON (codigo_municipio) codigo_municipio, ira_score, ira_nivel, cultivo, periodo
             FROM ira_resultados
             ORDER BY codigo_municipio, ira_score DESC
         ) r
-        JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio
+        JOIN municipios_geom m ON r.codigo_municipio = m.codigo_municipio
     """).fetchall()
 
     con.close()

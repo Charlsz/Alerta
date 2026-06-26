@@ -61,10 +61,18 @@ def _build_insumos(con) -> pd.DataFrame:
 
 def _build_dane(con) -> pd.DataFrame:
     """Variables socioeconómicas municipales (DANE): NBI, población rural."""
+    empty = pd.DataFrame(columns=["codigo_municipio", "nbi_total",
+                                  "poblacion_rural", "pct_rural"])
     if not _table_exists(con, "clean_dane_municipios"):
         logger.warning("[vulnerabilidad] clean_dane_municipios no existe. Vars DANE serán NaN.")
-        return pd.DataFrame(columns=["codigo_municipio", "nbi_total",
-                                     "poblacion_rural", "pct_rural"])
+        return empty
+
+    cols = [r[0] for r in con.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='clean_dane_municipios'"
+    ).fetchall()]
+    if "codigo_municipio" not in cols:
+        logger.warning("[vulnerabilidad] clean_dane_municipios sin columnas esperadas. Vars DANE serán NaN.")
+        return empty
 
     df = con.execute("""
         SELECT

@@ -73,7 +73,6 @@ def train_and_score(df: pd.DataFrame) -> pd.DataFrame:
                 "[anomaly] Cultivo '%s': solo %d muestras, usando modelo global.",
                 cultivo, len(X_cult),
             )
-            X_cult = X_all  # usar todos los datos como proxy
             fit_mask = slice(None)  # entrenar con todo
         else:
             fit_mask = mask
@@ -88,15 +87,15 @@ def train_and_score(df: pd.DataFrame) -> pd.DataFrame:
             joblib.dump(pipe, model_path)
             logger.info("[anomaly] Modelo entrenado y guardado para '%s'.", cultivo)
 
-        # IsolationForest: score_samples devuelve valores negativos (más negativo = más anómalo)
+        # Score only rows for this cultivo
+        X_score = X_cult if len(X_cult) >= _MIN_SAMPLES else X_all[mask.values]
         raw_scores = pipe.named_steps["iforest"].score_samples(
-            pipe.named_steps["scaler"].transform(X_cult)
+            pipe.named_steps["scaler"].transform(X_score)
         )
-        # Invertir y normalizar a [0,1] para que más alto = más anómalo
         scores_normalized = 1 - (raw_scores - raw_scores.min()) / (
             raw_scores.max() - raw_scores.min() + 1e-9
         )
-        predictions = pipe.predict(X_cult)  # -1 = anómalo, 1 = normal
+        predictions = pipe.predict(X_score)
 
         df.loc[mask, "anomaly_score"] = scores_normalized
         df.loc[mask, "is_anomaly"]    = predictions == -1

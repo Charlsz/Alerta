@@ -47,7 +47,7 @@ def _attach_municipio(table: str) -> str:
         SELECT o.*, e.codigo_municipio, e.nombre_municipio
         FROM {table} o
         JOIN estaciones_municipio e
-          ON TRIM(o.codigoestacion) = e.codigoestacion
+          ON CAST(o.codigoestacion AS VARCHAR) = e.codigoestacion
         WHERE o.fechaobservacion IS NOT NULL
           AND o.valorobservado   IS NOT NULL
           AND e.codigo_municipio IS NOT NULL
@@ -65,24 +65,27 @@ def _build_precip(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             SELECT
                 codigo_municipio,
                 CAST(fechaobservacion AS DATE)      AS fecha,
-                SUM(valorobservado)                 AS precip_dia
+                SUM(CAST(valorobservado AS DOUBLE))  AS precip_dia
             FROM obs
             GROUP BY codigo_municipio, CAST(fechaobservacion AS DATE)
         ),
+        p95 AS (
+            SELECT codigo_municipio,
+                   PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY precip_dia) AS umbral
+            FROM daily
+            GROUP BY codigo_municipio
+        ),
         monthly AS (
             SELECT
-                codigo_municipio,
-                DATE_TRUNC('month', fecha)          AS periodo,
-                SUM(precip_dia)                     AS precip_acum_30d,
-                SUM(precip_dia) / 4.33              AS precip_acum_7d,
-                COUNT(*) FILTER (WHERE precip_dia < 1) AS dias_secos_consecutivos,
-                COUNT(*) FILTER (
-                    WHERE precip_dia > PERCENTILE_CONT(0.95)
-                        WITHIN GROUP (ORDER BY precip_dia)
-                        OVER (PARTITION BY codigo_municipio)
-                )                                   AS dias_lluvia_extrema
-            FROM daily
-            GROUP BY codigo_municipio, periodo
+                d.codigo_municipio,
+                DATE_TRUNC('month', d.fecha)            AS periodo,
+                SUM(d.precip_dia)                       AS precip_acum_30d,
+                SUM(d.precip_dia) / 4.33                AS precip_acum_7d,
+                COUNT(*) FILTER (WHERE d.precip_dia < 1) AS dias_secos_consecutivos,
+                COUNT(*) FILTER (WHERE d.precip_dia > p.umbral) AS dias_lluvia_extrema
+            FROM daily d
+            LEFT JOIN p95 p ON d.codigo_municipio = p.codigo_municipio
+            GROUP BY d.codigo_municipio, periodo
         )
         SELECT * FROM monthly
     """
@@ -100,11 +103,11 @@ def _build_tmax(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             SELECT
                 codigo_municipio,
                 DATE_TRUNC('month', CAST(fechaobservacion AS DATE)) AS periodo,
-                AVG(valorobservado)                                  AS tmax_media_7d,
-                AVG(valorobservado) -
-                    AVG(AVG(valorobservado))
+                AVG(CAST(valorobservado AS DOUBLE))                                  AS tmax_media_7d,
+                AVG(CAST(valorobservado AS DOUBLE)) -
+                    AVG(AVG(CAST(valorobservado AS DOUBLE)))
                         OVER (PARTITION BY codigo_municipio)         AS tmax_anomalia_30d,
-                COUNT(*) FILTER (WHERE valorobservado > 33.0)        AS dias_tmax_critica
+                COUNT(*) FILTER (WHERE CAST(valorobservado AS DOUBLE) > 33.0) AS dias_tmax_critica
             FROM obs
             GROUP BY codigo_municipio, periodo
         )
@@ -129,7 +132,7 @@ def _build_humedad(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             SELECT
                 codigo_municipio,
                 DATE_TRUNC('month', CAST(fechaobservacion AS DATE)) AS periodo,
-                AVG(valorobservado)                                  AS humedad_media_30d
+                AVG(CAST(valorobservado AS DOUBLE))                                  AS humedad_media_30d
             FROM obs
             GROUP BY codigo_municipio, periodo
         )
@@ -160,7 +163,7 @@ def _build_presion(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             SELECT
                 codigo_municipio,
                 DATE_TRUNC('month', CAST(fechaobservacion AS DATE)) AS periodo,
-                AVG(valorobservado)                                  AS presion_media_30d
+                AVG(CAST(valorobservado AS DOUBLE))                                  AS presion_media_30d
             FROM obs
             GROUP BY codigo_municipio, periodo
         )
@@ -191,8 +194,8 @@ def _build_tambiente(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             SELECT
                 codigo_municipio,
                 DATE_TRUNC('month', CAST(fechaobservacion AS DATE)) AS periodo,
-                AVG(valorobservado)                                  AS tambiente_media_30d,
-                MIN(valorobservado)                                  AS tmin_media_30d
+                AVG(CAST(valorobservado AS DOUBLE))                                  AS tambiente_media_30d,
+                MIN(CAST(valorobservado AS DOUBLE))                                  AS tmin_media_30d
             FROM obs
             GROUP BY codigo_municipio, periodo
         )

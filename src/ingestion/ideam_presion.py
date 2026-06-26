@@ -48,7 +48,7 @@ def run(force: bool = False) -> None:
     if "fechaobservacion" in df.columns and not df.empty:
         fechas = pd.to_datetime(df["fechaobservacion"], errors="coerce")
         logger.info(
-            "[Presión IDEAM] %d filas | %s → %s | guardado en %s",
+            "[Presion IDEAM] %d filas | %s -> %s | guardado en %s",
             len(df), fechas.min().date(), fechas.max().date(), output_path,
         )
     else:

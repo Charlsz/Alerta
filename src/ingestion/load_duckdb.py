@@ -31,10 +31,15 @@ def _load_parquet(con: duckdb.DuckDBPyConnection, parquet_path: Path, table: str
     if not parquet_path.exists():
         logger.warning("[DuckDB] No existe %s, omitiendo tabla %s.", parquet_path, table)
         return 0
-    con.execute(f"""
-        CREATE OR REPLACE TABLE {table} AS
-        SELECT * FROM read_parquet('{parquet_path}')
-    """)
+    try:
+        con.execute(f"""
+            CREATE OR REPLACE TABLE {table} AS
+            SELECT * FROM read_parquet('{parquet_path}')
+        """)
+    except Exception as exc:
+        logger.warning("[DuckDB] Error cargando %s: %s. Creando tabla vacía.", parquet_path, exc)
+        con.execute(f"CREATE OR REPLACE TABLE {table} AS SELECT NULL LIMIT 0")
+        return 0
     (rows,) = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()  # type: ignore[misc]
     logger.info("[DuckDB] Tabla %-40s %d filas", f"'{table}'", rows)
     return rows

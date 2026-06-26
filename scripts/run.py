@@ -8,13 +8,18 @@ Usage:
 import argparse
 import importlib
 import logging
+import os
 import sys
 import time
+from pathlib import Path
+
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
 )
 logger = logging.getLogger("run")
 
@@ -52,7 +57,7 @@ STEPS = {
 
 
 def main():
-    sys.path.insert(0, str(__file__).resolve().parent.parent)
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
     parser = argparse.ArgumentParser(description="Run a data pipeline.")
     parser.add_argument("pipeline", choices=list(STEPS))

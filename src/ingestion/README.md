@@ -125,6 +125,8 @@ Cada script es independiente, idempotente y expone `run(force=False)` para el or
 
 **Por qué así:** CHIRPS es el producto estándar para precipitación histórica en zonas tropicales, con resolución de 0.05° (~5.5 km). UCSB no ofrece API de consulta — solo descarga directa de archivos NetCDF. Se elige NetCDF sobre GeoTIFF porque es el formato canónico de CHIRPS y permite acceso a bands temporales con xarray.
 
+**Nota:** CHIRPS cambió su formato de distribución a un único archivo NetCDF combinado de ~7.7 GB. El pipeline registra una advertencia y continúa; `precip_anomalia_30d` queda como NULL. La precipitación IDEAM (5M filas, 5 años) es suficiente para las features actuales.
+
 ---
 
 ### `dane_municipios.py` — Variables socioeconómicas DANE
@@ -134,6 +136,8 @@ Cada script es independiente, idempotente y expone `run(force=False)` para el or
 **Cómo lo hace:** Usa `_soda.fetch_soda()` con dataset `fjhr-4qb9` y filtro por año más reciente.
 
 **Por qué así:** No hay una API directa del DANE para estos indicadores. SODA ofrece el dataset oficial con la estructura tabular necesaria.
+
+**Nota:** El dataset `fjhr-4qb9` fue retirado de datos.gov.co. El pipeline maneja el error cargando una tabla vacía. Las variables NBI quedan como NULL en `features_municipio_cultivo`.
 
 ---
 

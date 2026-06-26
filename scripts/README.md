@@ -1,32 +1,33 @@
-# scripts/ — Orquestadores del pipeline
+# scripts/ — Orquestador del pipeline
 
-Scripts ejecutables que corren las etapas del pipeline en orden.
-Todos aceptan `--force` para re-ejecutar y `--only PASO` para correr un paso específico.
-
-## Archivos
-
-| Archivo | Líneas | Propósito |
-|---------|--------|-----------|
-| `run_ingestion.py` | 89 | Descarga datos crudos de todas las fuentes externas a `data/raw/` |
-| `run_features.py` | 79 | Carga Parquets a DuckDB, limpia, construye variables y tabla maestra |
-| `run_risk.py` | 70 | Calcula IRA, anomalías y predicciones de rendimiento |
-| `schema.sql` | 275 | Esquema de referencia del DuckDB (no se ejecuta, solo documentación) |
+Un único script `run.py` que corre cualquier etapa del pipeline.
 
 ## Uso
 
 ```bash
-# Pipeline completo
-python scripts/run_ingestion.py
-python scripts/run_features.py
-python scripts/run_risk.py
+# Pipeline completo por etapa
+python scripts/run.py ingest
+python scripts/run.py features
+python scripts/run.py risk
 
-# Re-ejecutar todo forzando re-descarga
-python scripts/run_ingestion.py --force
+# Re-ejecutar forzando
+python scripts/run.py ingest --force
 
 # Correr un solo paso
-python scripts/run_features.py --only clima
-python scripts/run_risk.py --only ira
+python scripts/run.py features --only clima
+python scripts/run.py risk --only ira
 
-# Pipeline end-to-end (vía Makefile)
+# Pipeline end-to-end
 make pipeline
 ```
+
+## Etapas y pasos
+
+### `ingest` — Descarga datos crudos de fuentes externas a `data/raw/`
+estaciones → municipios → eva → eva_calendario → insumos → dane → precipitacion → temperatura → humedad → presion → tambiente → chirps
+
+### `features` — Carga a DuckDB, limpia, construye variables, tabla maestra
+load_duckdb → clean → spatial → produccion → clima → vulnerabilidad → store
+
+### `risk` — Calcula IRA, anomalías, predicciones de rendimiento
+predict → anomaly → ira → store_risk

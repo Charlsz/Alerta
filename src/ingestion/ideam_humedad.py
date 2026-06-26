@@ -49,7 +49,7 @@ def run(force: bool = False) -> None:
     if "fechaobservacion" in df.columns and not df.empty:
         fechas = pd.to_datetime(df["fechaobservacion"], errors="coerce")
         logger.info(
-            "[Humedad IDEAM] %d filas | %s → %s | guardado en %s",
+            "[Humedad IDEAM] %d filas | %s -> %s | guardado en %s",
             len(df), fechas.min().date(), fechas.max().date(), output_path,
         )
     else:
