@@ -15,11 +15,17 @@ import pandas as pd
 from config import config
 from src.features.normalize import ALL_FEATURE_COLS, _SEP_COLS, _SPC_COLS, _SVE_COLS, normalize
 from src.ingestion.load_duckdb import get_connection
-from src.risk.classify import classify_ira
 
 logger = logging.getLogger(__name__)
 
 _TABLE = "ira_scores"
+
+
+def classify_ira(score: float) -> str:
+    for nivel, (lo, hi) in config.ira_niveles.items():
+        if lo <= score < hi:
+            return nivel
+    return "Crítico"
 
 
 def compute_subindices(df: pd.DataFrame) -> pd.DataFrame:
