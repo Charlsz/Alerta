@@ -99,7 +99,7 @@ Sobre el IRA base se aplican dos modelos:
 | Insumos | UPRA | gwbi-fnzs | Índice de precios de insumos agrícolas (88 filas) | ✅ Implementado |
 | Cartografía | IGAC / DANE | FeatureServer + GeoJSON | Geometrías municipales (1.122 municipios) | ✅ Implementado |
 | Cartografía | Catálogo estaciones IDEAM | hp9r-jxuu | Ubicación de estaciones meteorológicas (9.685 estaciones) | ✅ Implementado |
-| Socioeconómico | DANE — NBI | fjhr-4qb9 | Necesidades Básicas Insatisfechas por municipio | ❌ Dataset eliminado |
+| Socioeconómico | DANE — NBI | fjhr-4qb9 | Necesidades Básicas Insatisfechas por municipio | ❌ No implementado |
 | Ambiental | Deforestación por año | cqcx-tjpz | Hectáreas deforestadas por municipio (8K filas) | ❌ No implementado |
 | Ambiental | Causas de deforestación | em23-mwhw | Causas de deforestación (8K filas) | ❌ No implementado |
 
