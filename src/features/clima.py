@@ -27,7 +27,7 @@ import logging
 import duckdb
 import pandas as pd
 
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +140,7 @@ def _build_tmax(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
 
 def _build_humedad(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     """Humedad relativa media y anomalía mensual por municipio."""
-    if not _table_exists(con, "clean_humedad"):
+    if not table_exists(con, "clean_humedad"):
         logger.warning("[clima] clean_humedad no existe. Variables de humedad serán NaN.")
         return pd.DataFrame(columns=["codigo_municipio", "periodo",
                                      "humedad_media_30d", "humedad_anomalia_30d"])
@@ -171,7 +171,7 @@ def _build_humedad(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
 
 def _build_presion(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     """Presión media y anomalía mensual por municipio."""
-    if not _table_exists(con, "clean_presion"):
+    if not table_exists(con, "clean_presion"):
         logger.warning("[clima] clean_presion no existe. Variables de presión serán NaN.")
         return pd.DataFrame(columns=["codigo_municipio", "periodo",
                                      "presion_media_30d", "presion_anomalia_30d"])
@@ -202,7 +202,7 @@ def _build_presion(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
 
 def _build_tambiente(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     """Temperatura ambiente media y mínima mensual por municipio."""
-    if not _table_exists(con, "clean_tambiente"):
+    if not table_exists(con, "clean_tambiente"):
         logger.warning("[clima] clean_tambiente no existe. Variables de T.ambiente serán NaN.")
         return pd.DataFrame(columns=["codigo_municipio", "periodo",
                                      "tambiente_media_30d", "tmin_media_30d"])
@@ -231,7 +231,7 @@ def _build_tambiente(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
 
 def _build_viento(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
     """Velocidad del viento media mensual por municipio."""
-    if not _table_exists(con, "clean_viento"):
+    if not table_exists(con, "clean_viento"):
         logger.warning("[clima] clean_viento no existe. Variables de viento serán NaN.")
         return pd.DataFrame(columns=["codigo_municipio", "periodo",
                                      "viento_media_30d"])
@@ -248,19 +248,6 @@ def _build_viento(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helper local
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _table_exists(con: duckdb.DuckDBPyConnection, table: str) -> bool:
-    return bool(
-        con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [table],
-        ).fetchone()[0]  # type: ignore[index]
-    )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Punto de entrada
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -269,7 +256,7 @@ def build(force: bool = False) -> None:
     con = get_connection()
 
     if not force:
-        if _table_exists(con, _TABLE):
+        if table_exists(con, _TABLE):
             logger.info("[clima] Tabla '%s' ya existe, omitiendo.", _TABLE)
             con.close()
             return

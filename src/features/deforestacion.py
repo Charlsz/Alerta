@@ -10,7 +10,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)
 
@@ -160,15 +160,11 @@ def _load_primary_loss_data() -> pd.DataFrame:
 def build(force: bool = False) -> None:
     con = get_connection()
 
-    if not force:
-        exists = con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [_TABLE],
-        ).fetchone()[0]
-        if exists:
-            logger.info("[deforestacion] Tabla '%s' ya existe, omitiendo.", _TABLE)
-            con.close()
-            return
+    if not force and table_exists(con, _TABLE):
+
+        logger.info("...", _TABLE)
+
+        return
 
     loss = _load_loss_data()
     if loss.empty:

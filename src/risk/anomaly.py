@@ -20,7 +20,7 @@ from sklearn.preprocessing import StandardScaler
 
 from config import config
 from src.features.normalize import ALL_FEATURE_COLS, normalize
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)
 
@@ -110,15 +110,11 @@ def build(force: bool = False) -> None:
     """Lee features_municipio_cultivo, normaliza, entrena IsolationForest y guarda."""
     con = get_connection()
 
-    if not force:
-        exists = con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [_TABLE],
-        ).fetchone()[0]
-        if exists:
-            logger.info("[anomaly] '%s' ya existe, omitiendo.", _TABLE)
-            con.close()
-            return
+    if not force and table_exists(con, _TABLE):
+
+        logger.info("...", _TABLE)
+
+        return
 
     logger.info("[anomaly] Leyendo features_municipio_cultivo...")
     df = con.execute("SELECT * FROM features_municipio_cultivo").df()

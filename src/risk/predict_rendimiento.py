@@ -33,7 +33,7 @@ from sklearn.preprocessing import StandardScaler
 
 from config import config
 from src.features.normalize import ALL_FEATURE_COLS
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)
 
@@ -253,16 +253,10 @@ def build(force: bool = False) -> None:
     """Punto de entrada del pipeline. Lee features, entrena, guarda en DuckDB."""
     con = get_connection()
 
-    if not force:
-        if bool(
-            con.execute(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-                [_TABLE_OUT],
-            ).fetchone()[0]
-        ):
-            logger.info("[predict] Tabla '%s' ya existe, omitiendo.", _TABLE_OUT)
-            con.close()
-            return
+    if not force and table_exists(con, _TABLE_OUT):
+        logger.info("[predict] Tabla '%s' ya existe, omitiendo.", _TABLE_OUT)
+        con.close()
+        return
 
     logger.info("[predict] Cargando tabla maestra de features...")
     df = con.execute("SELECT * FROM features_municipio_cultivo").df()

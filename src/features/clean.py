@@ -3,7 +3,7 @@ import logging
 
 import duckdb
 
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)
 
@@ -58,23 +58,14 @@ def build(force: bool = False) -> None:
     con = get_connection()
     for table, sql in _CLEAN_SQL.items():
         raw_table = "raw_" + table[6:]
-        exists = con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [raw_table],
-        ).fetchone()[0]
-        if not exists:
+        if not table_exists(con, raw_table):
             logger.warning("[clean] Tabla origen %s no existe, saltando %s.", raw_table, table)
             con.execute(f"CREATE OR REPLACE TABLE {table} AS SELECT NULL LIMIT 0")
             continue
 
-        if not force:
-            already = con.execute(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-                [table],
-            ).fetchone()[0]
-            if already:
-                logger.info("[clean] %s ya existe, omitiendo.", table)
-                continue
+        if not force and table_exists(con, table):
+            logger.info("[clean] %s ya existe, omitiendo.", table)
+            continue
 
         con.execute(f"CREATE OR REPLACE TABLE {table} AS {sql}")
         (rows,) = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()

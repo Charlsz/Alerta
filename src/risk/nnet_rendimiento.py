@@ -18,7 +18,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from config import config
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 from src.risk.predict_rendimiento import _PREDICTOR_COLS
 
 logger = logging.getLogger(__name__)
@@ -78,15 +78,10 @@ def train_and_predict(df: pd.DataFrame, force: bool = False) -> pd.DataFrame:
 
 def build(force: bool = False) -> None:
     con = get_connection()
-    if not force:
-        exists = con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [_TABLE_OUT],
-        ).fetchone()[0]
-        if exists:
-            logger.info("[nnet] Tabla '%s' ya existe, omitiendo.", _TABLE_OUT)
-            con.close()
-            return
+    if not force and table_exists(con, _TABLE_OUT):
+        logger.info("[nnet] Tabla '%s' ya existe, omitiendo.", _TABLE_OUT)
+        con.close()
+        return
 
     logger.info("[nnet] Cargando features...")
     df = con.execute("SELECT * FROM features_municipio_cultivo").df()

@@ -10,30 +10,21 @@ import logging
 import duckdb
 import pandas as pd
 
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)
 
 _TABLE = "features_ndvi"
 
 
-def _table_exists(con: duckdb.DuckDBPyConnection, table: str) -> bool:
-    return bool(
-        con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [table],
-        ).fetchone()[0]
-    )
-
-
 def build(force: bool = False) -> None:
     con = get_connection()
-    if not force and _table_exists(con, _TABLE):
+    if not force and table_exists(con, _TABLE):
         logger.info("[ndvi] Tabla '%s' ya existe, omitiendo.", _TABLE)
         con.close()
         return
 
-    if not _table_exists(con, "clean_ndvi"):
+    if not table_exists(con, "clean_ndvi"):
         logger.warning("[ndvi] clean_ndvi no existe.")
         con.close()
         return

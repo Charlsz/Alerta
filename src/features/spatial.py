@@ -19,7 +19,7 @@ import geopandas as gpd
 import pandas as pd
 
 from config import config
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)
 
@@ -67,15 +67,10 @@ def build(force: bool = False) -> None:
     """Genera la tabla `estaciones_municipio` en DuckDB."""
     con = get_connection()
 
-    if not force:
-        existing = con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [_TABLE],
-        ).fetchone()[0]  # type: ignore[index]
-        if existing:
-            logger.info("[spatial] Tabla '%s' ya existe, omitiendo.", _TABLE)
-            con.close()
-            return
+    if not force and table_exists(con, _TABLE):
+        logger.info("[spatial] Tabla '%s' ya existe, omitiendo.", _TABLE)
+        con.close()
+        return
 
     logger.info("[spatial] Cargando estaciones y municipios...")
     estaciones = _load_estaciones()

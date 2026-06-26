@@ -16,20 +16,11 @@ from __future__ import annotations
 
 import logging
 
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)
 
 _TABLE = "features_municipio_cultivo"
-
-
-def _table_exists(con, table: str) -> bool:
-    return bool(
-        con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [table],
-        ).fetchone()[0]
-    )
 
 
 def build(force: bool = False) -> None:
@@ -37,7 +28,7 @@ def build(force: bool = False) -> None:
     con = get_connection()
 
     if not force:
-        if _table_exists(con, _TABLE):
+        if table_exists(con, _TABLE):
             logger.info("[store] Tabla '%s' ya existe, omitiendo.", _TABLE)
             con.close()
             return
@@ -45,7 +36,7 @@ def build(force: bool = False) -> None:
     # Verificar que features_dane existe (puede ser vacío si DANE no está disponible)
     dane_join = ""
     dane_cols = "NULL::DOUBLE AS nbi_total, NULL::DOUBLE AS poblacion_rural, NULL::DOUBLE AS pct_rural"
-    if _table_exists(con, "features_dane"):
+    if table_exists(con, "features_dane"):
         dane_join = "LEFT JOIN features_dane d ON c.codigo_municipio = d.codigo_municipio"
         dane_cols = "d.nbi_total, d.poblacion_rural, d.pct_rural"
 

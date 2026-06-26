@@ -15,7 +15,7 @@ import geopandas as gpd
 import pandas as pd
 
 from config import config
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)
 
@@ -69,15 +69,10 @@ def build(force: bool = False) -> None:
     """Create or replace municipio_lookup table in DuckDB."""
     con = get_connection()
 
-    if not force:
-        existing = con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [_TABLE],
-        ).fetchone()[0]
-        if existing:
-            logger.info("[municipio_lookup] %s ya existe, omitiendo.", _TABLE)
-            con.close()
-            return
+    if not force and table_exists(con, _TABLE):
+        logger.info("[municipio_lookup] %s ya existe, omitiendo.", _TABLE)
+        con.close()
+        return
 
     df = _build_lookup_df(con)
     if df.empty:
@@ -109,11 +104,7 @@ def run(force: bool = False) -> None:
     ]
 
     for tbl in ideam_tables:
-        existing = con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [tbl],
-        ).fetchone()[0]
-        if not existing:
+        if not table_exists(con, tbl):
             continue
 
         con.execute(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS codigo_municipio VARCHAR")

@@ -26,6 +26,13 @@ def get_connection() -> duckdb.DuckDBPyConnection:
     return con
 
 
+def table_exists(con: duckdb.DuckDBPyConnection, table: str) -> bool:
+    return bool(con.execute(
+        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
+        [table],
+    ).fetchone()[0])
+
+
 def _load_parquet(con: duckdb.DuckDBPyConnection, parquet_path: Path, table: str) -> int:
     """Lee un Parquet y lo carga en DuckDB como tabla. Retorna número de filas."""
     if not parquet_path.exists():

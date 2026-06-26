@@ -17,21 +17,12 @@ import logging
 
 import pandas as pd
 
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)
 
 _TABLE      = "features_vulnerabilidad"
 _TABLE_DANE = "features_dane"
-
-
-def _table_exists(con, table: str) -> bool:
-    return bool(
-        con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [table],
-        ).fetchone()[0]
-    )
 
 
 def _build_insumos(con) -> pd.DataFrame:
@@ -65,8 +56,8 @@ def _build_dane(con) -> pd.DataFrame:
                                   "poblacion_rural", "pct_rural"])
 
     # Try new clean_dane_nbi first (DANE Excel), fall back to clean_dane_municipios (SODA)
-    source = "clean_dane_nbi" if _table_exists(con, "clean_dane_nbi") else \
-             ("clean_dane_municipios" if _table_exists(con, "clean_dane_municipios") else None)
+    source = "clean_dane_nbi" if table_exists(con, "clean_dane_nbi") else \
+             ("clean_dane_municipios" if table_exists(con, "clean_dane_municipios") else None)
     if not source:
         logger.warning("[vulnerabilidad] Ninguna tabla DANE disponible. Vars serán NaN.")
         return empty
@@ -93,7 +84,7 @@ def build(force: bool = False) -> None:
     con = get_connection()
 
     if not force:
-        if _table_exists(con, _TABLE) and _table_exists(con, _TABLE_DANE):
+        if table_exists(con, _TABLE) and table_exists(con, _TABLE_DANE):
             logger.info("[vulnerabilidad] Tablas ya existen, omitiendo.")
             con.close()
             return

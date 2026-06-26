@@ -11,6 +11,7 @@ Endpoints:
     GET  /api/municipio/{codigo}/deforestacion — datos de deforestación
 """
 from __future__ import annotations
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 import json
 import os
@@ -45,11 +46,6 @@ def _con():
     return con
 
 
-def _table_exists(con, name):
-    return bool(con.execute(
-        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?", [name]
-    ).fetchone()[0])
-
 
 @app.get("/api/status")
 def get_status():
@@ -66,9 +62,9 @@ def get_filters():
     con = _con()
     cultivos = []
     departamentos = []
-    if _table_exists(con, "ira_resultados"):
+    if table_exists(con, "ira_resultados"):
         cultivos = [r[0] for r in con.execute("SELECT DISTINCT cultivo FROM ira_resultados ORDER BY cultivo").fetchall()]
-    if _table_exists(con, "estaciones_municipio"):
+    if table_exists(con, "estaciones_municipio"):
         departamentos = [r[0] for r in con.execute("SELECT DISTINCT nombre_departamento FROM estaciones_municipio ORDER BY nombre_departamento").fetchall()]
     con.close()
     return {"cultivos": cultivos, "departamentos": departamentos}
@@ -82,7 +78,7 @@ def get_ranking(
     offset: int = Query(0, ge=0),
 ):
     con = _con()
-    if not _table_exists(con, "ira_resultados"):
+    if not table_exists(con, "ira_resultados"):
         con.close()
         return {"data": [], "total": 0}
 
@@ -117,7 +113,7 @@ def get_ranking(
 @app.get("/api/municipios")
 def get_municipios():
     con = _con()
-    if not _table_exists(con, "ira_resultados"):
+    if not table_exists(con, "ira_resultados"):
         con.close()
         return {"type": "FeatureCollection", "features": []}
 
@@ -152,7 +148,7 @@ def get_municipios():
 @app.get("/api/municipio/{codigo}")
 def get_municipio(codigo: str, cultivo: str = None):
     con = _con()
-    if not _table_exists(con, "ira_resultados"):
+    if not table_exists(con, "ira_resultados"):
         con.close()
         return {"error": "no data"}
 
@@ -249,7 +245,7 @@ Usa los datos del municipio para responder. Sé conciso (máximo 3 párrafos). S
 def multiagent_municipio(codigo: str):
     """Análisis multi-agente del municipio."""
     con = _con()
-    if not _table_exists(con, "ira_resultados"):
+    if not table_exists(con, "ira_resultados"):
         con.close()
         return {"error": "no data"}
 
@@ -283,7 +279,7 @@ def multiagent_municipio(codigo: str):
 def get_municipio_ndvi(codigo: str):
     """Serie temporal NDVI del municipio desde datos satelitales (MODIS)."""
     con = _con()
-    if not _table_exists(con, "features_ndvi"):
+    if not table_exists(con, "features_ndvi"):
         con.close()
         return {"error": "no ndvi data"}
 
@@ -307,7 +303,7 @@ def get_municipio_ndvi(codigo: str):
 def get_municipio_deforestacion(codigo: str):
     """Datos de deforestación del municipio (GFW/Hansen, 2001-2025)."""
     con = _con()
-    if not _table_exists(con, "features_deforestacion"):
+    if not table_exists(con, "features_deforestacion"):
         con.close()
         return {"error": "no deforestation data"}
 

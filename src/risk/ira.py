@@ -14,7 +14,7 @@ import pandas as pd
 
 from config import config
 from src.features.normalize import ALL_FEATURE_COLS, _SEP_COLS, _SPC_COLS, _SVE_COLS, normalize
-from src.ingestion.load_duckdb import get_connection
+from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +59,11 @@ def build(force: bool = False) -> None:
     """Lee features_municipio_cultivo, normaliza, calcula IRA y guarda en DuckDB."""
     con = get_connection()
 
-    if not force:
-        exists = con.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [_TABLE],
-        ).fetchone()[0]
-        if exists:
-            logger.info("[IRA] '%s' ya existe, omitiendo.", _TABLE)
-            con.close()
-            return
+    if not force and table_exists(con, _TABLE):
+
+        logger.info("...", _TABLE)
+
+        return
 
     logger.info("[IRA] Leyendo features_municipio_cultivo...")
     df = con.execute("SELECT * FROM features_municipio_cultivo").df()
