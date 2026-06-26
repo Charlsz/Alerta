@@ -26,14 +26,8 @@ import requests
 
 from config import config
 
-# ponytail: manual .env loader, no python-dotenv dependency
-_env_path = Path(__file__).resolve().parent.parent.parent / ".env"
-if _env_path.exists():
-    for _line in _env_path.read_text("utf-8").splitlines():
-        _line = _line.strip()
-        if _line and not _line.startswith("#") and "=" in _line:
-            _k, _v = _line.split("=", 1)
-            os.environ.setdefault(_k.strip(), _v.strip())
+from dotenv import load_dotenv
+load_dotenv()
 
 app = FastAPI(title="Alerta API", docs_url="/api/docs")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
