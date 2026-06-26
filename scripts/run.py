@@ -31,6 +31,7 @@ STEPS = {
         ("eva_calendario","src.ingestion.eva_calendario"),
         ("insumos",       "src.ingestion.insumos"),
         ("dane",          "src.ingestion.dane_municipios"),
+        ("dane_nbi",      "src.ingestion.dane_nbi"),
         ("precipitacion", "src.ingestion.ideam_precipitacion"),
         ("temperatura",   "src.ingestion.ideam_temperatura"),
         ("humedad",       "src.ingestion.ideam_humedad"),

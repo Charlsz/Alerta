@@ -68,6 +68,7 @@ def run(force: bool = False) -> None:  # noqa: ARG001
         (raw / "ideam_presion.parquet",     "raw_presion"),
         (raw / "ideam_tambiente.parquet",   "raw_tambiente"),
         (raw / "dane_municipios.parquet",   "raw_dane_municipios"),
+        (raw / "dane_nbi.parquet",          "raw_dane_nbi"),
     ]
 
     total_rows = 0

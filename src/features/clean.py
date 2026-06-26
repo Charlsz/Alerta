@@ -37,6 +37,7 @@ _CLEAN_SQL = {
     "clean_insumos": "SELECT * FROM raw_insumos",
     "clean_eva_calendario": "SELECT * FROM raw_eva_calendario",
     "clean_dane_municipios": "SELECT * FROM raw_dane_municipios",
+    "clean_dane_nbi": "SELECT * FROM raw_dane_nbi",
 }
 
 

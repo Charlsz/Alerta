@@ -60,30 +60,31 @@ def _build_insumos(con) -> pd.DataFrame:
 
 
 def _build_dane(con) -> pd.DataFrame:
-    """Variables socioeconómicas municipales (DANE): NBI, población rural."""
+    """Variables socioeconómicas municipales: NBI (DANE Excel), población rural (si disponible)."""
     empty = pd.DataFrame(columns=["codigo_municipio", "nbi_total",
                                   "poblacion_rural", "pct_rural"])
-    if not _table_exists(con, "clean_dane_municipios"):
-        logger.warning("[vulnerabilidad] clean_dane_municipios no existe. Vars DANE serán NaN.")
+
+    # Try new clean_dane_nbi first (DANE Excel), fall back to clean_dane_municipios (SODA)
+    source = "clean_dane_nbi" if _table_exists(con, "clean_dane_nbi") else \
+             ("clean_dane_municipios" if _table_exists(con, "clean_dane_municipios") else None)
+    if not source:
+        logger.warning("[vulnerabilidad] Ninguna tabla DANE disponible. Vars serán NaN.")
         return empty
 
     cols = [r[0] for r in con.execute(
-        "SELECT column_name FROM information_schema.columns WHERE table_name='clean_dane_municipios'"
+        f"SELECT column_name FROM information_schema.columns WHERE table_name='{source}'"
     ).fetchall()]
-    if "codigo_municipio" not in cols:
-        logger.warning("[vulnerabilidad] clean_dane_municipios sin columnas esperadas. Vars DANE serán NaN.")
-        return empty
 
-    df = con.execute("""
-        SELECT
-            codigo_municipio,
-            nbi_total,
-            poblacion_rural,
-            pct_rural
-        FROM clean_dane_municipios
+    selected = ["codigo_municipio"]
+    for c in ("nbi_total", "poblacion_rural", "pct_rural"):
+        selected.append(c if c in cols else f"NULL::DOUBLE AS {c}")
+
+    df = con.execute(f"""
+        SELECT {', '.join(selected)}
+        FROM {source}
         WHERE codigo_municipio IS NOT NULL
     """).df()
-    logger.info("[vulnerabilidad] Variables DANE: %d municipios cargados.", len(df))
+    logger.info("[vulnerabilidad] %s: %d municipios cargados.", source, len(df))
     return df
 
 
