@@ -6,6 +6,8 @@ Endpoints:
     GET  /api/municipios    — GeoJSON con último IRA por municipio
     GET  /api/municipio/{codigo} — detalle por municipio y cultivo
     POST /api/municipio/{codigo}/chat — chatbot con LLM sobre el municipio
+    GET  /api/municipio/{codigo}/multiagent — análisis multi-agente
+    GET  /api/municipio/{codigo}/ndvi — serie temporal NDVI desde satélite
 """
 from __future__ import annotations
 
@@ -240,3 +242,61 @@ Usa los datos del municipio para responder. Sé conciso (máximo 3 párrafos). S
     resp.raise_for_status()
     answer = resp.json()["choices"][0]["message"]["content"]
     return {"answer": answer}
+
+
+@app.get("/api/municipio/{codigo}/multiagent")
+def multiagent_municipio(codigo: str):
+    """Análisis multi-agente del municipio."""
+    con = _con()
+    if not _table_exists(con, "ira_resultados"):
+        con.close()
+        return {"error": "no data"}
+
+    rows = con.execute("""
+        SELECT r.*, m.nombre_municipio, m.nombre_departamento
+        FROM ira_resultados r
+        LEFT JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio
+        WHERE r.codigo_municipio = ?
+        ORDER BY r.periodo DESC
+        LIMIT 1
+    """, [codigo]).fetchall()
+    con.close()
+
+    if not rows:
+        return {"error": "no data"}
+
+    columns = ["codigo_municipio","cultivo","periodo","spc","sep","sve","ira_score","ira_nivel",
+               "anomaly_score","is_anomaly","rendimiento_predicho","rendimiento_ic_inf","rendimiento_ic_sup",
+               "importancia_top3","rendimiento_nnet","nnet_ic_inf","nnet_ic_sup",
+               "nombre_municipio","nombre_departamento"]
+    row = dict(zip(columns, rows[0]))
+
+    from src.risk.multi_agent import analyze
+    result = analyze(row)
+    result["municipio"] = row.get("nombre_municipio")
+    result["departamento"] = row.get("nombre_departamento")
+    return result
+
+
+@app.get("/api/municipio/{codigo}/ndvi")
+def get_municipio_ndvi(codigo: str):
+    """Serie temporal NDVI del municipio desde datos satelitales (MODIS)."""
+    con = _con()
+    if not _table_exists(con, "features_ndvi"):
+        con.close()
+        return {"error": "no ndvi data"}
+
+    rows = con.execute("""
+        SELECT periodo, ndvi_media_30d, ndvi_anomalia_30d
+        FROM features_ndvi
+        WHERE codigo_municipio = ?
+        ORDER BY periodo DESC
+    """, [codigo]).fetchall()
+
+    con.close()
+    return {
+        "data": [
+            {"periodo": str(r[0]), "ndvi": r[1], "anomalia": r[2]}
+            for r in rows
+        ]
+    }

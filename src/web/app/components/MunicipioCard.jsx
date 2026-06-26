@@ -8,6 +8,30 @@ export default function MunicipioCard({ codigo }) {
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
+  const [multiAgent, setMultiAgent] = useState(null);
+  const [loadingAgent, setLoadingAgent] = useState(false);
+  const [ndviData, setNdviData] = useState(null);
+  const [loadingNdvi, setLoadingNdvi] = useState(false);
+
+  const loadNdvi = async () => {
+    if (loadingNdvi) return;
+    setLoadingNdvi(true);
+    try {
+      const res = await fetch(`/api/municipio/${codigo}/ndvi`);
+      setNdviData(await res.json());
+    } catch { setNdviData(null); }
+    setLoadingNdvi(false);
+  };
+
+  const loadMultiAgent = async () => {
+    if (loadingAgent) return;
+    setLoadingAgent(true);
+    try {
+      const res = await fetch(`/api/municipio/${codigo}/multiagent`);
+      setMultiAgent(await res.json());
+    } catch { setMultiAgent(null); }
+    setLoadingAgent(false);
+  };
 
   if (!codigo) return <p>Selecciona un municipio en el mapa o ranking.</p>;
   if (loading) return <p>Cargando...</p>;
@@ -55,6 +79,47 @@ export default function MunicipioCard({ codigo }) {
         <a href={`/reporte/${codigo}`} target="_blank" style={{ fontSize: 12, color: "#007bff", textDecoration: "none" }}>
           Reporte PDF completo →
         </a>
+      </div>
+
+      <div style={{ marginTop: 8, borderTop: "1px solid #eee", paddingTop: 12 }}>
+        <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Análisis Multi-Agente</p>
+        {!multiAgent && !loadingAgent && (
+          <button onClick={loadMultiAgent} style={{ padding: "6px 14px", fontSize: 12, borderRadius: 4, border: "1px solid #888", cursor: "pointer", background: "#f5f5f5" }}>
+            Cargar análisis multi-agente
+          </button>
+        )}
+        {loadingAgent && <p style={{ color: "#999", fontSize: 12 }}>Analizando...</p>}
+        {multiAgent?.agentes?.map((a, i) => (
+          <div key={i} style={{ marginBottom: 8, padding: "6px 10px", background: "#f9f9f9", borderRadius: 6, fontSize: 12 }}>
+            <strong>{a.agente}:</strong> nivel <em>{a.nivel}</em>
+            {a.hallazgos?.length > 0 && <ul style={{ margin: "4px 0", paddingLeft: 16 }}>{a.hallazgos.map((h, j) => <li key={j}>{h}</li>)}</ul>}
+          </div>
+        ))}
+        {multiAgent?.coordinador && (
+          <div style={{ padding: "6px 10px", background: "#fff3e0", borderRadius: 6, fontSize: 12 }}>
+            <strong>Coordinador ({multiAgent.coordinador.prioridad}):</strong> {multiAgent.coordinador.resumen}
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 8, borderTop: "1px solid #eee", paddingTop: 12 }}>
+        <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>NDVI Satelital (MODIS)</p>
+        {!ndviData && !loadingNdvi && (
+          <button onClick={loadNdvi} style={{ padding: "6px 14px", fontSize: 12, borderRadius: 4, border: "1px solid #888", cursor: "pointer", background: "#f5f5f5" }}>
+            Cargar NDVI
+          </button>
+        )}
+        {loadingNdvi && <p style={{ color: "#999", fontSize: 12 }}>Cargando...</p>}
+        {ndviData?.data?.length > 0 && (
+          <div style={{ fontSize: 12 }}>
+            <p>Último NDVI: <strong>{ndviData.data[0].ndvi?.toFixed(3)}</strong> ({ndviData.data[0].periodo})
+              {ndviData.data[0].anomalia != null && (
+                <span> — Anomalía: <strong>{ndviData.data[0].anomalia.toFixed(1)}%</strong></span>
+              )}
+            </p>
+            <p style={{ color: "#666", marginTop: 2 }}>Datos del satélite Terra/Aqua (MODIS), agregados por municipio</p>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 8, borderTop: "1px solid #eee", paddingTop: 12 }}>

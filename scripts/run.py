@@ -38,6 +38,7 @@ STEPS = {
         ("presion",       "src.ingestion.ideam_presion"),
         ("tambiente",     "src.ingestion.ideam_tambiente"),
         ("viento",        "src.ingestion.ideam_viento"),
+        ("ndvi",          "src.ingestion.ndvi"),
         ("chirps",        "src.ingestion.chirps"),
     ],
     "features": [
@@ -46,6 +47,7 @@ STEPS = {
         ("spatial",        "src.features.spatial"),
         ("produccion",     "src.features.produccion"),
         ("clima",          "src.features.clima"),
+        ("ndvi",           "src.features.ndvi"),
         ("vulnerabilidad", "src.features.vulnerabilidad"),
         ("store",          "src.features.store"),
     ],

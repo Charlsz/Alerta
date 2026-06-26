@@ -39,6 +39,17 @@ _CLEAN_SQL = {
     "clean_dane_municipios": "SELECT * FROM raw_dane_municipios",
     "clean_dane_nbi": "SELECT * FROM raw_dane_nbi",
     "clean_viento": "SELECT * FROM raw_viento",
+    "clean_ndvi": """
+        SELECT
+            LPAD(REPLACE(PCODE, 'CO', ''), 5, '0') AS codigo_municipio,
+            CAST(date AS DATE) AS fecha,
+            CAST(vim AS DOUBLE) AS ndvi,
+            CAST(vim_avg AS DOUBLE) AS ndvi_avg,
+            CAST(viq AS DOUBLE) AS ndvi_anomalia
+        FROM raw_ndvi
+        WHERE adm_level = 2
+          AND vim IS NOT NULL
+    """,
 }
 
 
