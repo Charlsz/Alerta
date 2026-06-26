@@ -94,9 +94,14 @@ export default function ReportePage({ params }) {
             <div className="sub">Peso: 20%</div>
           </div>
           <div className="card">
-            <h3>Rendimiento Predicho</h3>
+            <h3>Rendimiento Predicho (XGBoost)</h3>
             <div className="valor">{r.rendimiento_predicho != null ? `${r.rendimiento_predicho} t/ha` : "—"}</div>
             <div className="sub">{r.rendimiento_ic_inf != null ? `IC 95%: [${r.rendimiento_ic_inf.toFixed(1)} – ${r.rendimiento_ic_sup.toFixed(1)}]` : ""}</div>
+          </div>
+          <div className="card">
+            <h3>Rendimiento Predicho (Red Neuronal)</h3>
+            <div className="valor">{r.rendimiento_nnet != null ? `${r.rendimiento_nnet} t/ha` : "—"}</div>
+            <div className="sub">{r.nnet_ic_inf != null ? `IC 95%: [${r.nnet_ic_inf.toFixed(1)} – ${r.nnet_ic_sup.toFixed(1)}]` : ""}</div>
           </div>
         </div>
 

@@ -46,7 +46,8 @@ export default function MunicipioCard({ codigo }) {
           <tr><td>SEP (Exposición)</td><td>{r.sep?.toFixed(3)}</td></tr>
           <tr><td>SVE (Vulnerabilidad)</td><td>{r.sve?.toFixed(3)}</td></tr>
           <tr><td>Anomalía</td><td>{r.anomaly_score != null ? r.anomaly_score.toFixed(2) : "—"}</td></tr>
-          <tr><td>Rendimiento predicho</td><td>{r.rendimiento_predicho != null ? `${r.rendimiento_predicho} t/ha` : "—"}</td></tr>
+          <tr><td>Rendimiento predicho (XGBoost)</td><td>{r.rendimiento_predicho != null ? `${r.rendimiento_predicho} t/ha` : "—"}</td></tr>
+          <tr><td>Rendimiento predicho (Red Neuronal)</td><td>{r.rendimiento_nnet != null ? `${r.rendimiento_nnet} t/ha` : "—"}</td></tr>
         </tbody>
       </table>
 

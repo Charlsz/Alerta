@@ -37,6 +37,7 @@ STEPS = {
         ("humedad",       "src.ingestion.ideam_humedad"),
         ("presion",       "src.ingestion.ideam_presion"),
         ("tambiente",     "src.ingestion.ideam_tambiente"),
+        ("viento",        "src.ingestion.ideam_viento"),
         ("chirps",        "src.ingestion.chirps"),
     ],
     "features": [
@@ -50,6 +51,7 @@ STEPS = {
     ],
     "risk": [
         ("predict",    "src.risk.predict_rendimiento"),
+        ("nnet",       "src.risk.nnet_rendimiento"),
         ("anomaly",    "src.risk.anomaly"),
         ("ira",        "src.risk.ira"),
         ("store_risk", "src.risk.store_risk"),

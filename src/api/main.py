@@ -170,7 +170,8 @@ def get_municipio(codigo: str, cultivo: str = None):
     con.close()
     columns = ["codigo_municipio","cultivo","periodo","spc","sep","sve","ira_score","ira_nivel",
                "anomaly_score","is_anomaly","rendimiento_predicho","rendimiento_ic_inf","rendimiento_ic_sup",
-               "importancia_top3","nombre_municipio","nombre_departamento"]
+               "importancia_top3","rendimiento_nnet","nnet_ic_inf","nnet_ic_sup",
+               "nombre_municipio","nombre_departamento"]
     return {"data": [dict(zip(columns, r)) for r in rows]}
 
 
@@ -202,7 +203,8 @@ def chat_municipio(codigo: str, body: dict = None):
 
     columns = ["codigo_municipio","cultivo","periodo","spc","sep","sve","ira_score","ira_nivel",
                "anomaly_score","is_anomaly","rendimiento_predicho","rendimiento_ic_inf","rendimiento_ic_sup",
-               "importancia_top3","nombre_municipio","nombre_departamento"]
+               "importancia_top3","rendimiento_nnet","nnet_ic_inf","nnet_ic_sup",
+               "nombre_municipio","nombre_departamento"]
     data = [dict(zip(columns, r)) for r in rows]
 
     system_prompt = """Eres un asistente experto en riesgo climático agrícola para Colombia, integrado en la plataforma "Alerta". Tu función es explicar los indicadores de riesgo agrícola a funcionarios públicos y agricultores en lenguaje claro y sencillo.
