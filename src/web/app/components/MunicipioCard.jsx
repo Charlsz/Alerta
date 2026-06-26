@@ -12,6 +12,18 @@ export default function MunicipioCard({ codigo }) {
   const [loadingAgent, setLoadingAgent] = useState(false);
   const [ndviData, setNdviData] = useState(null);
   const [loadingNdvi, setLoadingNdvi] = useState(false);
+  const [deforData, setDeforData] = useState(null);
+  const [loadingDefor, setLoadingDefor] = useState(false);
+
+  const loadDefor = async () => {
+    if (loadingDefor) return;
+    setLoadingDefor(true);
+    try {
+      const res = await fetch(`/api/municipio/${codigo}/deforestacion`);
+      setDeforData(await res.json());
+    } catch { setDeforData(null); }
+    setLoadingDefor(false);
+  };
 
   const loadNdvi = async () => {
     if (loadingNdvi) return;
@@ -118,6 +130,25 @@ export default function MunicipioCard({ codigo }) {
               )}
             </p>
             <p style={{ color: "#666", marginTop: 2 }}>Datos del satélite Terra/Aqua (MODIS), agregados por municipio</p>
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 8, borderTop: "1px solid #eee", paddingTop: 12 }}>
+        <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Deforestación (GFW/Hansen)</p>
+        {!deforData && !loadingDefor && (
+          <button onClick={loadDefor} style={{ padding: "6px 14px", fontSize: 12, borderRadius: 4, border: "1px solid #888", cursor: "pointer", background: "#f5f5f5" }}>
+            Cargar datos de deforestación
+          </button>
+        )}
+        {loadingDefor && <p style={{ color: "#999", fontSize: 12 }}>Cargando...</p>}
+        {deforData?.data && (
+          <div style={{ fontSize: 12 }}>
+            <p>Pérdida bosque 2025: <strong>{deforData.data.deforestacion_2025?.toFixed(0)} ha</strong></p>
+            <p>Total últimos 5 años: <strong>{deforData.data.deforestacion_total_5y?.toFixed(0)} ha</strong></p>
+            <p>Total últimos 10 años: <strong>{deforData.data.deforestacion_total_10y?.toFixed(0)} ha</strong></p>
+            <p>Tendencia: <strong>{deforData.data.deforestacion_tendencia_label}</strong></p>
+            <p style={{ color: "#666", marginTop: 2 }}>Fuente: Global Forest Watch (Hansen/UMD)</p>
           </div>
         )}
       </div>

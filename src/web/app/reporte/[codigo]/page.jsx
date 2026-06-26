@@ -6,6 +6,7 @@ export default function ReportePage({ params }) {
   const { codigo } = use(params);
   const [data, setData] = useState(null);
   const [reporte, setReporte] = useState("");
+  const [defor, setDefor] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -13,6 +14,7 @@ export default function ReportePage({ params }) {
     // fetch data + LLM report in parallel
     Promise.all([
       fetch(`/api/municipio/${codigo}`).then((r) => r.json()),
+      fetch(`/api/municipio/${codigo}/deforestacion`).then((r) => r.json()),
       fetch(`/api/municipio/${codigo}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -20,8 +22,9 @@ export default function ReportePage({ params }) {
           question: "Genera un reporte ejecutivo de riesgo agrícola para este municipio. Incluye: resumen del nivel de riesgo, desglose de los 3 componentes (SPC, SEP, SVE), predicción de rendimiento vs. promedio histórico, y 3 recomendaciones de mitigación concretas. Usa formato claro con viñetas. Máximo 400 palabras.",
         }),
       }).then((r) => r.json()),
-    ]).then(([d, r]) => {
+    ]).then(([d, df, r]) => {
       setData(d);
+      setDefor(df?.data || null);
       setReporte(r.answer || "");
     }).finally(() => setLoading(false));
   }, [codigo]);
@@ -114,6 +117,33 @@ export default function ReportePage({ params }) {
             <tr><td>Período</td><td>{r.periodo}</td><td>Trimestre de análisis</td></tr>
           </tbody>
         </table>
+
+        {defor && (
+          <>
+            <div className="grid">
+              <div className="card">
+                <h3>Pérdida de Bosque 2025</h3>
+                <div className="valor">{defor.deforestacion_2025?.toFixed(0)} ha</div>
+                <div className="sub">Deforestación en el año más reciente</div>
+              </div>
+              <div className="card">
+                <h3>Pérdida Total (5 años)</h3>
+                <div className="valor">{defor.deforestacion_total_5y?.toFixed(0)} ha</div>
+                <div className="sub">Acumulado 2021–2025</div>
+              </div>
+              <div className="card">
+                <h3>Pérdida Total (10 años)</h3>
+                <div className="valor">{defor.deforestacion_total_10y?.toFixed(0)} ha</div>
+                <div className="sub">Acumulado 2016–2025</div>
+              </div>
+              <div className="card">
+                <h3>Tendencia</h3>
+                <div className="valor">{defor.deforestacion_tendencia_label}</div>
+                <div className="sub">Basada en datos GFW/Hansen 2001–2025</div>
+              </div>
+            </div>
+          </>
+        )}
 
         <h3 style={{ marginBottom: 12 }}>Análisis Generado por IA</h3>
         <div className="reporte-texto">{reporte}</div>

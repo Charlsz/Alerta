@@ -8,6 +8,7 @@ Endpoints:
     POST /api/municipio/{codigo}/chat — chatbot con LLM sobre el municipio
     GET  /api/municipio/{codigo}/multiagent — análisis multi-agente
     GET  /api/municipio/{codigo}/ndvi — serie temporal NDVI desde satélite
+    GET  /api/municipio/{codigo}/deforestacion — datos de deforestación
 """
 from __future__ import annotations
 
@@ -300,3 +301,27 @@ def get_municipio_ndvi(codigo: str):
             for r in rows
         ]
     }
+
+
+@app.get("/api/municipio/{codigo}/deforestacion")
+def get_municipio_deforestacion(codigo: str):
+    """Datos de deforestación del municipio (GFW/Hansen, 2001-2025)."""
+    con = _con()
+    if not _table_exists(con, "features_deforestacion"):
+        con.close()
+        return {"error": "no deforestation data"}
+
+    rows = con.execute("""
+        SELECT *
+        FROM features_deforestacion
+        WHERE codigo_municipio = ?
+    """, [codigo]).fetchall()
+
+    con.close()
+    if not rows:
+        return {"error": "no data for this municipio"}
+
+    columns = ["codigo_municipio","deforestacion_2025","deforestacion_total_5y","deforestacion_total_10y",
+               "primary_loss_5y","deforestacion_ha_promedio","n_anos_datos",
+               "deforestacion_tendencia","deforestacion_tendencia_label"]
+    return {"data": dict(zip(columns, rows[0]))}

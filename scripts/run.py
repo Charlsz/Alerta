@@ -49,6 +49,7 @@ STEPS = {
         ("clima",          "src.features.clima"),
         ("ndvi",           "src.features.ndvi"),
         ("vulnerabilidad", "src.features.vulnerabilidad"),
+        ("deforestacion",  "src.features.deforestacion"),
         ("store",          "src.features.store"),
     ],
     "risk": [
