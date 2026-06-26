@@ -29,42 +29,24 @@ def _normalize(name: str) -> str:
 _NAME_FIXUPS = {
     "MIRITI PARANA": "MIRITI - PARANA",
     "CAROLINA DEL PRINCIPE": "CAROLINA",
-    "DON MATIAS": "DON MATIAS",
     "EL SOPETRAN": "SOPETRAN",
     "SAN VICENTE": "SAN VICENTE DE CHUCURI",
     "SANTAFE DE ANTIOQUIA": "SANTA FE DE ANTIOQUIA",
     "SAN ESTANISLAO DE KOSTKA": "SAN ESTANISLAO",
     "GUICAN": "GUICAN DE LA SIERRA",
     "PIENDAMA": "PIENDAMO",
-    "SOTARA": "SOTARA",
     "CARMEN DE APICALA": "EL CARMEN",
     "CAROLINA": "CAROLINA DEL PRINCIPE",
     "EL CARMEN": "CARMEN DE APICALA",
     "PUEBLO BELLO": "PUEBLOBELLO",
     "SANTA ROSA": "SANTA ROSA DE CABAL",
     "SAN PEDRO": "SAN PEDRO DE LOS MILAGROS",
-    "SAN PEDRO DE URABA": "SAN PEDRO DE URABA",
     "SAN LUIS": "SAN LUIS DE PALENQUE",
-    "SANTA MARTA": "SANTA MARTA",
     "SAN JOSE": "SAN JOSE DE LA MONTANA",
-    "SAN JOSE DEL GUAVIARE": "SAN JOSE DEL GUAVIARE",
     "SAN JOSE DE PARE": "SAN JOSE DE LA MONTANA",
-    "VILLA DEL ROSARIO": "VILLA DEL ROSARIO",
-    "RIO DE ORO": "RIO DE ORO",
-    "SANTA ROSA DEL SUR": "SANTA ROSA DEL SUR",
-    "SANTA ROSA DE VITERBO": "SANTA ROSA DE VITERBO",
-    "TIERRALTA": "TIERRA ALTA",
-    "VALLE DE SAN JOSE": "VALLE DE SAN JOSE",
     "SAN MIGUEL": "SAN MIGUEL DE PUTUMAYO",
-    "SAN FRANCISCO": "SAN FRANCISCO",
-    "SAN BERNARDO": "SAN BERNARDO",
     "SAN BENITO": "SAN BENITO ABAD",
     "SAN ANTONIO": "SAN ANTONIO DEL TEQUENDAMA",
-    "SABANALARGA": "SABANALARGA",
-    "PUERTO RICO": "PUERTO RICO",
-    "PUERTO NARINO": "PUERTO NARINO",
-    "PUERTO LIBERTADOR": "PUERTO LIBERTADOR",
-    "SAN JOSE DE CALDAS": "CALDAS",
 }
 
 # Extra department-prefixed fallbacks
@@ -104,21 +86,17 @@ def _json_path(name: str) -> Path:
     return Path("data/raw") / f"raw_gfw_subnational_2_{name}.json"
 
 
-def _load_loss_data() -> pd.DataFrame:
-    path = _json_path("tree_cover_loss")
+def _load_json_data(name: str, value_key: str, start_year: int = 2001) -> pd.DataFrame:
+    path = _json_path(name)
     if not path.exists():
-        logger.error("JSON not found: %s", path)
         return pd.DataFrame()
-
     with open(path, encoding="utf-8") as f:
         records = json.load(f)
-
     rows = []
     for rec in records:
-        thresh = rec["threshold"]
-        if thresh != 30:
+        if rec.get("threshold") != 30:
             continue
-        for year in range(2001, 2026):
+        for year in range(start_year, 2026):
             col = f"tc_loss_ha_{year}"
             val = rec.get(col)
             if val is not None and float(val) > 0:
@@ -126,33 +104,7 @@ def _load_loss_data() -> pd.DataFrame:
                     "departamento": rec["subnational1"],
                     "municipio": rec["subnational2"],
                     "year": year,
-                    "tc_loss_ha": float(val),
-                })
-    return pd.DataFrame(rows)
-
-
-def _load_primary_loss_data() -> pd.DataFrame:
-    path = _json_path("primary_loss")
-    if not path.exists():
-        return pd.DataFrame()
-
-    with open(path, encoding="utf-8") as f:
-        records = json.load(f)
-
-    rows = []
-    for rec in records:
-        thresh = rec["threshold"]
-        if thresh != 30:
-            continue
-        for year in range(2002, 2026):
-            col = f"tc_loss_ha_{year}"
-            val = rec.get(col)
-            if val is not None and float(val) > 0:
-                rows.append({
-                    "departamento": rec["subnational1"],
-                    "municipio": rec["subnational2"],
-                    "year": year,
-                    "primary_loss_ha": float(val),
+                    value_key: float(val),
                 })
     return pd.DataFrame(rows)
 
@@ -161,18 +113,16 @@ def build(force: bool = False) -> None:
     con = get_connection()
 
     if not force and table_exists(con, _TABLE):
-
-        logger.info("...", _TABLE)
-
+        logger.info("[deforestacion] '%s' ya existe, omitiendo.", _TABLE)
         return
 
-    loss = _load_loss_data()
+    loss = _load_json_data("tree_cover_loss", "tc_loss_ha")
     if loss.empty:
         logger.error("[deforestacion] No se pudieron cargar datos.")
         con.close()
         return
 
-    primary = _load_primary_loss_data()
+    primary = _load_json_data("primary_loss", "primary_loss_ha", start_year=2002)
     if not primary.empty:
         loss = loss.merge(primary, on=["departamento", "municipio", "year"], how="left")
     loss["primary_loss_ha"] = loss.get("primary_loss_ha", 0.0).fillna(0.0)
