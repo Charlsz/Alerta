@@ -17,21 +17,6 @@ class IRAConfig:
     w_sep: float = 0.3   # Sub-índice de Exposición Productiva
     w_sve: float = 0.2   # Sub-índice de Vulnerabilidad Económica
 
-    # ── Umbrales climáticos ──────────────────────────────────────────────────
-    precip_extrema_percentil: float = 95.0  # Percentil para lluvia extrema
-
-    # Temperatura crítica por cultivo (°C). Usar "default" cuando el cultivo
-    # no esté listado explícitamente.
-    tmax_critica_por_cultivo: Dict[str, float] = field(
-        default_factory=lambda: {
-            "maiz": 34.0,
-            "arroz": 35.0,
-            "papa": 28.0,
-            "cafe": 30.0,
-            "default": 33.0,
-        }
-    )
-
     # ── Paginación SODA API (datos.gov.co) ───────────────────────────────────
     soda_page_size: int = 50_000
 
