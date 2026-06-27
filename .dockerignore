@@ -7,3 +7,6 @@ node_modules
 .next
 data/raw
 data/models
+data/features
+data/processed
+data/warehouse.db
