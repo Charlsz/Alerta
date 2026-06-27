@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import logging
 
-import pandas as pd
-
 from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)

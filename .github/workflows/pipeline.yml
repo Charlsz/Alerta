@@ -1,9 +1,8 @@
-# ponytail: weekly scheduled pipeline — no streaming/real-time infra needed yet.
-# Switch to server cron + webhook when data freshness demands sub-daily updates.
 name: pipeline
 on:
   schedule:
-    - cron: "0 5 * * 1"
+    - cron: "0 5 * * *"
+    - cron: "0 17 * * *"
   workflow_dispatch:
 jobs:
   pipeline:

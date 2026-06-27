@@ -22,9 +22,6 @@ class IRAConfig:
 
     # ── Rutas de datos ───────────────────────────────────────────────────────
     data_raw: str = "data/raw"
-    data_processed: str = "data/processed"
-    data_features: str = "data/features"
-
     # Archivo DuckDB: motor analítico local.
     # Todas las tablas del proyecto se almacenan aquí.
     duckdb_path: str = "data/alerta.duckdb"
@@ -42,9 +39,7 @@ class IRAConfig:
 
     def ensure_dirs(self) -> None:
         """Crea las carpetas de datos si no existen."""
-        for path in (self.data_raw, self.data_processed, self.data_features):
-            Path(path).mkdir(parents=True, exist_ok=True)
-        # Asegurar que el directorio padre de DuckDB también exista
+        Path(self.data_raw).mkdir(parents=True, exist_ok=True)
         Path(self.duckdb_path).parent.mkdir(parents=True, exist_ok=True)
 
 

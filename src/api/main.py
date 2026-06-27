@@ -29,6 +29,13 @@ from config import config
 from dotenv import load_dotenv
 load_dotenv()
 
+_IRA_COLUMNS = [
+    "codigo_municipio","cultivo","periodo","spc","sep","sve","ira_score","ira_nivel",
+    "anomaly_score","is_anomaly","rendimiento_predicho","rendimiento_ic_inf","rendimiento_ic_sup",
+    "importancia_top3","rendimiento_nnet","nnet_ic_inf","nnet_ic_sup",
+    "nombre_municipio","nombre_departamento",
+]
+
 app = FastAPI(title="Alerta API", docs_url="/api/docs")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -47,7 +54,7 @@ def get_status():
     return {
         "db_exists": db_path.exists(),
         "last_updated": datetime.fromtimestamp(db_path.stat().st_mtime).isoformat() if db_path.exists() else None,
-        "scheduler": "GitHub Actions weekly (cron: 0 5 * * 1)",
+        "scheduler": "GitHub Actions diario (cron: 0 5,17 * * *)",
     }
 
 
@@ -127,7 +134,6 @@ def get_municipios():
 
     features = []
     for r in rows:
-        import json
         features.append({
             "type": "Feature",
             "geometry": json.loads(r[7]),
@@ -161,11 +167,7 @@ def get_municipio(codigo: str, cultivo: str = None):
     """, params).fetchall()
 
     con.close()
-    columns = ["codigo_municipio","cultivo","periodo","spc","sep","sve","ira_score","ira_nivel",
-               "anomaly_score","is_anomaly","rendimiento_predicho","rendimiento_ic_inf","rendimiento_ic_sup",
-               "importancia_top3","rendimiento_nnet","nnet_ic_inf","nnet_ic_sup",
-               "nombre_municipio","nombre_departamento"]
-    return {"data": [dict(zip(columns, r)) for r in rows]}
+    return {"data": [dict(zip(_IRA_COLUMNS, r)) for r in rows]}
 
 
 @app.post("/api/municipio/{codigo}/chat")
@@ -188,19 +190,16 @@ def chat_municipio(codigo: str, body: dict = None):
         LEFT JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio
         WHERE r.codigo_municipio = ?
         ORDER BY r.periodo DESC
+        LIMIT 30
     """, [codigo]).fetchall()
     con.close()
 
     if not rows:
         return {"answer": "No hay datos disponibles para este municipio."}
 
-    columns = ["codigo_municipio","cultivo","periodo","spc","sep","sve","ira_score","ira_nivel",
-               "anomaly_score","is_anomaly","rendimiento_predicho","rendimiento_ic_inf","rendimiento_ic_sup",
-               "importancia_top3","rendimiento_nnet","nnet_ic_inf","nnet_ic_sup",
-               "nombre_municipio","nombre_departamento"]
-    data = [dict(zip(columns, r)) for r in rows]
+    data = [dict(zip(_IRA_COLUMNS, r)) for r in rows]
 
-    system_prompt = """Eres un asistente experto en riesgo climático agrícola para Colombia, integrado en la plataforma "Alerta". Tu función es explicar los indicadores de riesgo agrícola a funcionarios públicos y agricultores en lenguaje claro y sencillo.
+    system_prompt = """Eres un asistente experto en riesgo climático agrícola para Colombia, integrado en la plataforma "Alerta". Tu función es explicar los indicadores de riesgo agrícola a funcionarios públicos y agricultores en lenguaje claro y sencillo. Sin formato markdown ni viñetas, solo texto plano.
 
 INDICADORES:
 - IRA (Índice de Riesgo Agrícola): 0-1, compuesto por SPC (peligro climático, peso 50%), SEP (exposición productiva, peso 30%), SVE (vulnerabilidad económica, peso 20%).
@@ -213,26 +212,29 @@ Usa los datos del municipio para responder. Sé conciso (máximo 3 párrafos). S
 
     # ponytail: single prompt call, no streaming for now.
     # Add streaming when latency becomes an issue.
-    resp = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": "openrouter/owl-alpha",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Datos del municipio:\n{json.dumps(data, ensure_ascii=False, default=str)}\n\nPregunta: {question}"},
-            ],
-            "temperature": 0.3,
-            "max_tokens": 600,
-        },
-        timeout=30,
-    )
-    resp.raise_for_status()
-    answer = resp.json()["choices"][0]["message"]["content"]
-    return {"answer": answer}
+    try:
+        resp = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "openrouter/owl-alpha",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Datos del municipio:\n{json.dumps(data, ensure_ascii=False, default=str)}\n\nPregunta: {question}"},
+                ],
+                "temperature": 0.3,
+                "max_tokens": 600,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        answer = resp.json()["choices"][0]["message"]["content"]
+        return {"answer": answer}
+    except Exception as e:
+        return {"answer": f"Error al contactar el modelo: {str(e)[:200]}"}
 
 
 @app.get("/api/municipio/{codigo}/multiagent")
@@ -249,18 +251,14 @@ def multiagent_municipio(codigo: str):
         LEFT JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio
         WHERE r.codigo_municipio = ?
         ORDER BY r.periodo DESC
-        LIMIT 1
+        LIMIT 30
     """, [codigo]).fetchall()
     con.close()
 
     if not rows:
         return {"error": "no data"}
 
-    columns = ["codigo_municipio","cultivo","periodo","spc","sep","sve","ira_score","ira_nivel",
-               "anomaly_score","is_anomaly","rendimiento_predicho","rendimiento_ic_inf","rendimiento_ic_sup",
-               "importancia_top3","rendimiento_nnet","nnet_ic_inf","nnet_ic_sup",
-               "nombre_municipio","nombre_departamento"]
-    row = dict(zip(columns, rows[0]))
+    row = dict(zip(_IRA_COLUMNS, rows[0]))
 
     from src.risk.multi_agent import analyze
     result = analyze(row)

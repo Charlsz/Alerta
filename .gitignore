@@ -41,15 +41,11 @@ venv.bak/
 # Data (ignorado salvo muestras explA-citas)
 # -----------------------------------------------------------------------------
 data/raw/*
-data/processed/*
-data/features/*
 data/alerta.duckdb
 data/alerta.db
 data/warehouse.db
 data/models/
 !data/raw/.gitkeep
-!data/processed/.gitkeep
-!data/features/.gitkeep
 !data/samples/
 !data/samples/**
 

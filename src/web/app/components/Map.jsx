@@ -8,19 +8,21 @@ export default function Map({ onSelect }) {
   const { data } = useAPI("/api/municipios");
   const ref = useRef(null);
   const mapRef = useRef(null);
+  const layerRef = useRef(null);
 
   useEffect(() => {
-    if (!data?.features?.length || mapRef.current) return;
-
+    if (!data?.features?.length) return;
     import("leaflet/dist/leaflet.css");
     import("leaflet").then((L) => {
-      mapRef.current = L.map(ref.current, { zoomControl: true }).setView([4.5, -74], 6);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 18,
-        attribution: "© OpenStreetMap",
-      }).addTo(mapRef.current);
-
-      L.geoJSON(data, {
+      if (!mapRef.current) {
+        mapRef.current = L.map(ref.current, { zoomControl: true }).setView([4.5, -74], 6);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 18,
+          attribution: "© OpenStreetMap",
+        }).addTo(mapRef.current);
+      }
+      if (layerRef.current) mapRef.current.removeLayer(layerRef.current);
+      layerRef.current = L.geoJSON(data, {
         style: (f) => ({
           fillColor: COLORS[f.properties.ira_nivel] || "#888",
           weight: 1,
@@ -29,15 +31,15 @@ export default function Map({ onSelect }) {
         }),
         onEachFeature: (f, layer) => {
           layer.bindTooltip(
-            `<b>${f.properties.municipio}</b><br/>IRA: ${f.properties.ira_nivel} (${f.properties.ira_score?.toFixed(3)})`
+            `<b>${f.properties.municipio}</b><br/>` +
+            `<span style="font-size:11px">Máximo IRA: ${f.properties.ira_nivel} (${f.properties.ira_score?.toFixed(3)}) — ${f.properties.cultivo}</span>`
           );
-          layer.on("click", () => onSelect?.(f.properties.codigo_municipio));
+          layer.on("click", () => onSelect?.({ codigo: f.properties.codigo_municipio, cultivo: f.properties.cultivo }));
         },
       }).addTo(mapRef.current);
     });
-
-    return () => { mapRef.current?.remove(); mapRef.current = null; };
+    return () => { mapRef.current?.remove(); mapRef.current = null; layerRef.current = null; };
   }, [data, onSelect]);
 
-  return <div ref={ref} style={{ width: "100%", height: 500, borderRadius: 8 }} />;
+  return <div ref={ref} className="map-container" />;
 }

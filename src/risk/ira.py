@@ -13,7 +13,7 @@ import logging
 import pandas as pd
 
 from config import config
-from src.features.normalize import ALL_FEATURE_COLS, _SEP_COLS, _SPC_COLS, _SVE_COLS, normalize
+from src.features.normalize import _SEP_COLS, _SPC_COLS, _SVE_COLS, normalize
 from src.ingestion.load_duckdb import get_connection, table_exists
 
 logger = logging.getLogger(__name__)

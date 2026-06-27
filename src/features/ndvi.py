@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 
-import duckdb
 import pandas as pd
 
 from src.ingestion.load_duckdb import get_connection, table_exists
