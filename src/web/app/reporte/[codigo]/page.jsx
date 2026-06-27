@@ -7,6 +7,8 @@ export default function ReportePage({ params }) {
   const [data, setData] = useState(null);
   const [reporte, setReporte] = useState("");
   const [defor, setDefor] = useState(null);
+  const [ndvi, setNdvi] = useState(null);
+  const [multiAgent, setMultiAgent] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,6 +17,8 @@ export default function ReportePage({ params }) {
     Promise.all([
       fetch(`/api/municipio/${codigo}`).then((r) => r.json()),
       fetch(`/api/municipio/${codigo}/deforestacion`).then((r) => r.json()),
+      fetch(`/api/municipio/${codigo}/ndvi`).then((r) => r.json()),
+      fetch(`/api/municipio/${codigo}/multiagent`).then((r) => r.json()),
       fetch(`/api/municipio/${codigo}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -22,9 +26,11 @@ export default function ReportePage({ params }) {
           question: "Genera un reporte ejecutivo de riesgo agrícola para este municipio. Incluye: resumen del nivel de riesgo, desglose de los 3 componentes (SPC, SEP, SVE), predicción de rendimiento vs. promedio histórico, y 3 recomendaciones de mitigación concretas. Usa formato claro con viñetas. Máximo 400 palabras.",
         }),
       }).then((r) => r.json()),
-    ]).then(([d, df, r]) => {
+    ]).then(([d, df, n, m, r]) => {
       setData(d);
       setDefor(df?.data || null);
+      setNdvi(n || null);
+      setMultiAgent(m?.agentes ? m : null);
       setReporte(r.answer || "");
     }).finally(() => setLoading(false));
   }, [codigo]);
@@ -143,6 +149,40 @@ export default function ReportePage({ params }) {
               </div>
             </div>
           </>
+        )}
+
+        {ndvi?.data?.length > 0 && (
+          <div className="card" style={{ marginBottom: 24 }}>
+            <h3>Salud de la Vegetación (NDVI Satelital)</h3>
+            <p>Último NDVI: <strong>{ndvi.data[0].ndvi?.toFixed(3)}</strong> ({ndvi.data[0].periodo})</p>
+            {ndvi.data[0].anomalia != null && (
+              <p>Anomalía de vegetación: <strong>{ndvi.data[0].anomalia.toFixed(1)}%</strong></p>
+            )}
+            <p style={{ fontSize: 12, color: "#666", marginTop: 8 }}>Vegetación más débil de lo normal sugiere posible estrés de cultivos. Fuente: MODIS (Terra/Aqua).</p>
+          </div>
+        )}
+
+        {multiAgent?.agentes && (
+          <div style={{ marginBottom: 24 }}>
+            <h3 style={{ marginBottom: 8 }}>Análisis Multi-Agente</h3>
+            <div className="grid">
+              {multiAgent.agentes.map((a, i) => (
+                <div key={i} className="card" style={{ fontSize: 13 }}>
+                  <strong>{a.agente}:</strong> nivel <em>{a.nivel}</em>
+                  {a.hallazgos?.length > 0 && (
+                    <ul style={{ margin: "6px 0 0 0", paddingLeft: 16, fontSize: 12, color: "#555" }}>
+                      {a.hallazgos.map((h, j) => <li key={j}>{h}</li>)}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+            {multiAgent.coordinador && (
+              <div className="card" style={{ background: "#fff3e0", marginTop: 8 }}>
+                <strong>Coordinador ({multiAgent.coordinador.prioridad}):</strong> {multiAgent.coordinador.resumen}
+              </div>
+            )}
+          </div>
         )}
 
         <h3 style={{ marginBottom: 12 }}>Análisis Generado por IA</h3>
