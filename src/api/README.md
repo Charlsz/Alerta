@@ -6,7 +6,7 @@ Sirve los resultados del motor de riesgo al frontend e integra el asistente conv
 
 | Archivo | Propósito |
 |---------|-----------|
-| `main.py` | Aplicación FastAPI con 6 endpoints + cargador de `.env` manual |
+| `main.py` | Aplicación FastAPI con 9 endpoints + carga `.env` vía python-dotenv |
 
 ## Endpoints
 
@@ -17,12 +17,14 @@ Sirve los resultados del motor de riesgo al frontend e integra el asistente conv
 | GET | `/api/ranking` | Ranking paginado municipio–cultivo por IRA |
 | GET | `/api/municipios` | GeoFeatureCollection con último IRA por municipio |
 | GET | `/api/municipio/{codigo}` | Historial completo por municipio y cultivo |
+| GET | `/api/municipio/{codigo}/deforestacion` | Datos de deforestación GFW/Hansen |
+| GET | `/api/municipio/{codigo}/ndvi` | Serie temporal NDVI satelital (MODIS) |
+| GET | `/api/municipio/{codigo}/multiagent` | Análisis multi-agente del riesgo |
 | POST | `/api/municipio/{codigo}/chat` | Asistente IA: pregunta sobre el municipio (requiere OPENROUTER_API_KEY) |
 
 ## Dependencias externas
 
 - `OPENROUTER_API_KEY` en `.env` para el endpoint `/chat` (modelo `openrouter/owl-alpha`)
-- El cargador manual de `.env` está en `main.py` (no requiere python-dotenv)
 
 ## Desarrollo
 

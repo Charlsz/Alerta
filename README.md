@@ -97,17 +97,16 @@ Sobre el IRA base se aplican cuatro componentes de inteligencia artificial:
 | Clima | IDEAM — Humedad relativa | uext-mhny | Humedad del aire (87M filas, últimos 5 años) | ✅ Implementado |
 | Clima | IDEAM — Presión atmosférica | 62tk-nxj5 | Presión atmosférica (34M filas, últimos 5 años) | ✅ Implementado |
 | Clima | IDEAM — Temperatura ambiente | sbwg-7ju4 | Temperatura ambiente media y mínima (90M filas, últimos 5 años) | ✅ Implementado |
-| Clima | IDEAM — Viento | sgfv-3yp8 | Velocidad del viento (169M filas) | ❌ No implementado |
-| Clima | CHIRPS / NASA POWER | — | Precipitación histórica para anomalías | ❌ Fuente caída |
+| Clima | IDEAM — Viento | sgfv-3yp8 | Velocidad del viento (600K filas, últimos 2 años) | ✅ Implementado |
+| Satelital | MODIS (HDX) | ndvi-municipio | NDVI mensual por municipio (184K filas, 2022–2026) | ✅ Implementado |
+| Ambiental | GFW / Hansen | Subnational 2 | Pérdida de cobertura arbórea por municipio (26K filas, 2001–2025) | ✅ Implementado |
 | Producción | EVA | 2pnw-mmge | Área sembrada, cosechada, producción y rendimiento (200K filas) | ✅ Implementado |
 | Producción | EVA — Vista | fp29-z39g | Vista estadística auxiliar (170 filas) | ✅ Implementado |
 | Producción | EVA — Calendario | UPRA Excel | Calendario de siembras y cosechas por cultivo | ✅ Implementado |
 | Insumos | UPRA | gwbi-fnzs | Índice de precios de insumos agrícolas (88 filas) | ✅ Implementado |
 | Cartografía | IGAC / DANE | FeatureServer + GeoJSON | Geometrías municipales (1.122 municipios) | ✅ Implementado |
 | Cartografía | Catálogo estaciones IDEAM | hp9r-jxuu | Ubicación de estaciones meteorológicas (9.685 estaciones) | ✅ Implementado |
-| Socioeconómico | DANE — NBI | fjhr-4qb9 | Necesidades Básicas Insatisfechas por municipio | ❌ No implementado |
-| Ambiental | Deforestación por año | cqcx-tjpz | Hectáreas deforestadas por municipio (8K filas) | ❌ No implementado |
-| Ambiental | Causas de deforestación | em23-mwhw | Causas de deforestación (8K filas) | ❌ No implementado |
+| Socioeconómico | DANE — NBI | Excel DANE | Necesidades Básicas Insatisfechas por municipio (1.123 municipios) | ✅ Implementado |
 
 ## Variables calculadas (26 features)
 
@@ -134,7 +133,7 @@ Sobre el IRA base se aplican cuatro componentes de inteligencia artificial:
 - **Ingesta**: scripts independientes descargan datos de IDEAM, EVA, UPRA, IGAC → Parquet
 - **Feature engineering**: DuckDB SQL construye tablas limpias y 26 variables por municipio × cultivo
 - **Riesgo**: IRA + IsolationForest + RandomForest para predicción de rendimiento
-- **API**: FastAPI con 6 endpoints REST (filters, ranking, municipios, municipio detalle, chat LLM, status)
+- **API**: FastAPI con 9 endpoints REST (filters, ranking, municipios, municipio detalle, chat LLM, multiagent, ndvi, deforestacion, status)
 - **Frontend**: Next.js 15 con Leaflet para mapa interactivo, chat asistente, reportes PDF
 - **LLM**: OpenRouter API (modelo `openrouter/owl-alpha`) para asistente conversacional y generación de reportes
 - **Automatización**: GitHub Actions (cron semanal) + Docker Compose
@@ -159,7 +158,7 @@ Sobre el IRA base se aplican cuatro componentes de inteligencia artificial:
 ### Backend y API
 - FastAPI + Uvicorn
 - DuckDB (conexión directa, sin ORM)
-- 6 endpoints REST
+- 9 endpoints REST
 
 ### Frontend y visualización
 - Next.js 15 (App Router)
@@ -204,22 +203,29 @@ make docker-build && make docker-up
 ## Endpoints de la API
 
 | Método | Ruta | Descripción |
-|---|---|---|---|
+|---|---|---|---|---|
 | GET | `/api/status` | Estado del pipeline y última actualización de datos |
 | GET | `/api/filters` | Cultivos y departamentos disponibles |
 | GET | `/api/ranking` | Ranking paginado municipio–cultivo por IRA |
 | GET | `/api/municipios` | GeoJSON con último IRA por municipio (1.122 features) |
 | GET | `/api/municipio/{codigo}` | Historial completo por municipio y cultivo |
+| GET | `/api/municipio/{codigo}/deforestacion` | Datos de deforestación GFW/Hansen |
+| GET | `/api/municipio/{codigo}/ndvi` | Serie temporal NDVI satelital (MODIS) |
+| GET | `/api/municipio/{codigo}/multiagent` | Análisis multi-agente del riesgo |
 | POST | `/api/municipio/{codigo}/chat` | Pregunta al asistente IA sobre el municipio |
 | GET | `/reporte/{codigo}` | Reporte ejecutivo imprimible/PDF (frontend) |
 
 ## Salidas del pipeline
 
 | Tabla / Archivo | Filas | Contenido |
-|---|---|---|
-| `features_municipio_cultivo` | 38.341 | 26 variables por municipio × cultivo × período |
-| `ira_resultados` | 38.341 | IRA score + nivel + anomalía + predicción de rendimiento |
-| `predicciones_rendimiento` | 33.291 | Rendimiento predicho (t/ha) con IC 95% y SHAP top-3 |
+|---|---|---|---|
+| `features_municipio_cultivo` | 43.192 | 26 variables por municipio × cultivo × período |
+| `features_clima` | 2.328 | 15 variables climáticas (incl. viento) por municipio × mes |
+| `features_ndvi` | 60.210 | NDVI medio mensual + anomalía por municipio |
+| `features_deforestacion` | 1.014 | Pérdida de cobertura arbórea por municipio (2001–2025) |
+| `ira_resultados` | 43.192 | IRA score + nivel + anomalía + predicción de rendimiento |
+| `predicciones_rendimiento` | 33.291 | Rendimiento predicho XGBoost (t/ha) con IC 95% y SHAP top-3 |
+| `predicciones_nnet` | 33.291 | Rendimiento predicho Red Neuronal (t/ha) con IC 95% |
 | `data/models/iforest_*.joblib` | 183 | Modelos IsolationForest por cultivo |
 | `data/models/rendimiento_*.joblib` | 183 | Modelos de predicción de rendimiento por cultivo |
 
@@ -244,10 +250,12 @@ make docker-build && make docker-up
 
 ## Roadmap
 
-Ver [ROADMAP.md](ROADMAP.md) para el detalle de lo que falta implementar: reparar fuentes de datos rotas (CHIRPS, NBI), viento IDEAM, calibración de pesos del IRA, datos satelitales NDVI, deep learning para series climáticas y sistemas multiagente.
+Ver [ROADMAP.md](ROADMAP.md) para el detalle de próximas mejoras: calibración adaptativa de pesos del IRA, deep learning para series climáticas, y expansión a más cultivos.
 
 ## Notas
 
 Este repositorio documenta el desarrollo técnico y metodológico de la solución presentada al concurso de Datos Abiertos de Colombia. El alcance, las fuentes y las herramientas se ajustaron durante la implementación según disponibilidad, calidad y utilidad analítica de los datos.
 
 El asistente conversacional requiere una API key de OpenRouter configurada en `.env` como `OPENROUTER_API_KEY`. Sin ella, el chat y los reportes PDF muestran un mensaje de configuración pendiente; el resto de la plataforma funciona sin cambios.
+
+La anomalía de precipitación se calcula contra el histórico IDEAM (promedio por municipio-mes), no contra CHIRPS. CHIRPS fue descartado por cambio de formato y la capa de ingesta correspondiente fue eliminada.

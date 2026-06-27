@@ -103,7 +103,7 @@ Cada script es independiente, idempotente y expone `run(force=False)` para el or
 
 **Cómo lo hace:** Descarga un archivo Excel (.xlsx) directamente desde `upra.gov.co` con `requests.get()`, lo lee con `pd.read_excel()`, elimina columnas `Unnamed`, normaliza nombres a minúsculas y fuerza texto en columnas de tipo mixto antes de guardar como Parquet.
 
-**Por qué así:** UPRA publica el consolidado como Excel, no como dataset SODA. Intentar extraerlo de SODA daría datos desactualizados o incompletos. La descarga directa del Excel oficial es más confiable y simple. Requiere `openpyxl` para leer `.xlsx`.
+**Por qué así:** UPRA publica el consolidado como Excel, no como dataset SODA. Intentar extraerlo de SODA daría datos desactualizados o incompletos. La descarga directa del Excel oficial es más confiable y simple.
 
 ---
 
@@ -117,15 +117,23 @@ Cada script es independiente, idempotente y expone `run(force=False)` para el or
 
 ---
 
-### `chirps.py` — Precipitación histórica CHIRPS
+### `ideam_viento.py` — Velocidad del viento IDEAM
 
-**Qué hace:** Descarga precipitación mensual global CHIRPS v2.0 desde 1991 hasta el mes anterior, como archivos NetCDF. Guarda en `data/raw/chirps/<año>/<mes>.nc`. La línea de base histórica (1991-presente) se usa en `features/clima.py` para calcular anomalías de precipitación.
+**Qué hace:** Descarga observaciones de velocidad del viento del IDEAM desde datos.gov.co (~600K filas, últimos 2 años). Guarda en `data/raw/ideam_viento.parquet`.
 
-**Cómo lo hace:** Construye URLs del repositorio de UCSB (`chc.ucsb.edu`), descarga cada archivo mensual con `requests.get(stream=True)` en chunks de 1 MB. Solo descarga archivos faltantes (idempotente).
+**Cómo lo hace:** Usa el endpoint JSON de SODA con `$order=fechaobservacion DESC`, paginación de 200K registros por página (hasta 3 páginas). El filtro `$where` limita a los últimos 2 años.
 
-**Por qué así:** CHIRPS es el producto estándar para precipitación histórica en zonas tropicales, con resolución de 0.05° (~5.5 km). UCSB no ofrece API de consulta — solo descarga directa de archivos NetCDF. Se elige NetCDF sobre GeoTIFF porque es el formato canónico de CHIRPS y permite acceso a bands temporales con xarray.
+**Por qué así:** El endpoint CSV de SODA (usado por otros scripts) responde con error 400 para este dataset. El JSON endpoint es más confiable. No se descargan 169M filas históricas completas por límites de tiempo de respuesta; 600K registros (~12 días continuos) cubren las estaciones activas y permiten computar promedios mensuales representativos.
 
-**Nota:** CHIRPS cambió su formato de distribución a un único archivo NetCDF combinado de ~7.7 GB. El pipeline registra una advertencia y continúa; `precip_anomalia_30d` queda como NULL. La precipitación IDEAM (5M filas, 5 años) es suficiente para las features actuales.
+---
+
+### `ndvi.py` — NDVI satelital MODIS
+
+**Qué hace:** Descarga NDVI pre-agregado por municipio desde HDX (Humanitarian Data Exchange), dataset `colombia-ndvi-municipio`. Contiene 184K filas con NDVI medio mensual por municipio, 2022–2026. Guarda en `data/raw/ndvi.parquet`.
+
+**Cómo lo hace:** Usa `requests.get()` para descargar un CSV desde HDX. Mapea códigos P-codes (ej. `CO05001`) a códigos DANE de 5 dígitos quitando el prefijo "CO".
+
+**Por qué así:** HDX ofrece el dato ya agregado por municipio, evitando procesamiento geoespacial de imágenes raster MODIS (~500 GB). La resolución temporal mensual es adecuada para el modelo IRA.
 
 ---
 
@@ -156,12 +164,11 @@ Cada script es independiente, idempotente y expone `run(force=False)` para el or
 El orquestador (`scripts/run.py ingest`) corre los módulos en este orden:
 
 ```
-estaciones  →  municipios  →  eva  →  eva_calendario  →  insumos  →  dane  →
-precipitacion  →  temperatura  →  humedad  →  presion  →  tambiente  →  chirps
+estaciones  →  municipios  →  eva  →  eva_calendario  →  insumos  →  dane  →  dane_nbi  →
+precipitacion  →  temperatura  →  humedad  →  presion  →  tambiente  →  viento  →  ndvi
 ```
 
 Dependencias lógicas:
 - `ideam_estaciones` + `igac_municipios` deben ejecutarse antes de `spatial.py` (en `src/features/`)
-- EVA, insumos y DANE son independientes y pueden correr en cualquier orden
-- CHIRPS va al final por ser la descarga más pesada (~400 MB)
+- EVA, insumos, DANE y DANE NBI son independientes y pueden correr en cualquier orden
 - `load_duckdb.py` se corre después de toda la ingesta para consolidar en DuckDB

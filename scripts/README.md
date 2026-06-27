@@ -24,13 +24,13 @@ make pipeline
 ## Etapas y pasos
 
 ### `ingest` — Descarga datos crudos de fuentes externas a `data/raw/`
-estaciones → municipios → eva → eva_calendario → insumos → dane → precipitacion → temperatura → humedad → presion → tambiente → chirps
+estaciones → municipios → eva → eva_calendario → insumos → dane → dane_nbi → precipitacion → temperatura → humedad → presion → tambiente → viento → ndvi
 
 ### `features` — Carga a DuckDB, limpia, construye variables, tabla maestra
 load_duckdb → clean → spatial → produccion → clima → vulnerabilidad → store
 
 ### `risk` — Calcula IRA, anomalías, predicciones de rendimiento
-predict → anomaly → ira → store_risk
+predict → nnet → anomaly → ira → store_risk
 
 ## Automatización
 
