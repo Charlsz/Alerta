@@ -1,10 +1,9 @@
-"""Ingesta de Velocidad del Viento IDEAM desde datos.gov.co (CSV directo).
+"""Ingesta de Velocidad del Viento IDEAM desde datos.gov.co (SODA JSON).
 
 Variable que aporta: velocidad_viento (m/s).
 Fuente: https://www.datos.gov.co/d/sgfv-3yp8
 """
 import datetime
-import io
 import logging
 from pathlib import Path
 
@@ -15,16 +14,37 @@ from config import config
 
 logger = logging.getLogger(__name__)
 
+_PAGE_SIZE = 200000
+_MAX_PAGES = 3  # ~600K records, ~10 days coverage
 
-def _download_csv(dataset_id: str, where_clause: str | None = None) -> pd.DataFrame:
-    """Download a SODA dataset as CSV with optional $where filter."""
-    url = f"https://www.datos.gov.co/resource/{dataset_id}.csv"
-    params: dict[str, str | int] = {"$limit": 5_000_000}
+
+def _download_json(dataset_id: str, where_clause: str | None = None) -> pd.DataFrame:
+    """Download SODA dataset via JSON endpoint."""
+    url = f"https://www.datos.gov.co/resource/{dataset_id}.json"
+    params: dict = {"$limit": _PAGE_SIZE, "$order": "fechaobservacion DESC"}
     if where_clause:
         params["$where"] = where_clause
-    resp = requests.get(url, params=params, stream=True, timeout=600)
-    resp.raise_for_status()
-    return pd.read_csv(io.BytesIO(resp.content), low_memory=False)
+
+    all_rows = []
+    offset = 0
+    for _ in range(_MAX_PAGES):
+        params["$offset"] = offset
+        try:
+            resp = requests.get(url, params=params, timeout=120)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            logger.warning("[Viento IDEAM] Error en offset %d: %s", offset, exc)
+            break
+        if not data:
+            break
+        all_rows.extend(data)
+        if len(data) < _PAGE_SIZE:
+            break
+        offset += _PAGE_SIZE
+        logger.info("[Viento IDEAM] Descargados %d registros...", len(all_rows))
+
+    return pd.DataFrame(all_rows)
 
 
 def run(force: bool = False) -> None:
@@ -34,11 +54,11 @@ def run(force: bool = False) -> None:
         logger.info("[Viento IDEAM] Ya existe %s, omitiendo.", output_path.name)
         return
 
-    cutoff = datetime.date.today() - datetime.timedelta(days=5 * 365)
+    cutoff = datetime.date.today() - datetime.timedelta(days=365 * 2)
     where = f"fechaobservacion >= '{cutoff.isoformat()}'"
+    logger.info("[Viento IDEAM] Descargando (sgfv-3yp8)...")
+    df = _download_json("sgfv-3yp8", where_clause=where)
 
-    logger.info("[Viento IDEAM] Descargando (sgfv-3yp8) con $where=%s ...", where)
-    df = _download_csv("sgfv-3yp8", where_clause=where)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
 
