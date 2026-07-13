@@ -200,6 +200,24 @@ make web              # Next.js en :3000
 make docker-build && make docker-up
 ```
 
+## Notebooks de análisis
+
+En `notebooks/` hay cinco notebooks de experimentación y análisis exploratorio que
+trabajan sobre los resultados del pipeline (`data/alerta.duckdb`). No forman parte del
+pipeline de producción; son para explorar y explicar los datos y el modelo.
+
+```
+notebooks/
+├── 01_EDA_exploracion_datos.ipynb      # Experimentación y análisis exploratorio
+├── 02_limpieza_transformacion.ipynb    # Limpieza, Codificación, Normalización
+├── 03_analisis_descriptivo.ipynb       # Estadísticas básicas, Correlaciones
+├── 04_modelo_predictivo.ipynb          # Entrenamiento simple, Validación básica
+└── 05_reportes_automaticos.ipynb       # Reportes, Gráficos dinámicos
+```
+
+Requieren haber corrido `make pipeline` antes (cada notebook avisa si falta la base).
+Ver [notebooks/README.md](notebooks/README.md) para detalle.
+
 ## Endpoints de la API
 
 | Método | Ruta | Descripción |
