@@ -178,9 +178,9 @@ def chat_municipio(codigo: str, body: dict = None):
     if not question:
         return {"answer": "Escribe una pregunta sobre el municipio."}
 
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = os.getenv("GOOGLE_AI_API_KEY")
     if not api_key:
-        return JSONResponse({"answer": "El asistente no está configurado (falta OPENROUTER_API_KEY)."}, status_code=503)
+        return JSONResponse({"answer": "El asistente no está configurado (falta GOOGLE_AI_API_KEY)."}, status_code=503)
 
     # fetch municipio data
     con = _con()
@@ -199,7 +199,9 @@ def chat_municipio(codigo: str, body: dict = None):
 
     data = [dict(zip(_IRA_COLUMNS, r)) for r in rows]
 
-    system_prompt = """Eres un asistente experto en riesgo climático agrícola para Colombia, integrado en la plataforma "Alerta". Tu función es explicar los indicadores de riesgo agrícola a funcionarios públicos y agricultores en lenguaje claro y sencillo. Sin formato markdown, sin viñetas, sin guiones, sin asteriscos. Solo texto plano con puntos y comas.
+    system_prompt = """Eres un asistente experto en riesgo climático agrícola para Colombia. Habla en lenguaje claro y sencillo como para un agricultor. No uses formato markdown, ni viñetas, ni guiones, ni asteriscos. Solo texto plano con puntos y comas.
+
+REGLA IMPORTANTE: No expliques tu razonamiento ni muestres tu proceso de análisis. Responde ÚNICAMENTE el texto final del análisis, sin prefacios, sin introducciones como "El usuario quiere...", sin "Basado en los datos...". Empieza directamente con la respuesta.
 
 INDICADORES:
 - IRA (Índice de Riesgo Agrícola): 0-1, compuesto por SPC (peligro climático, peso 50%), SEP (exposición productiva, peso 30%), SVE (vulnerabilidad económica, peso 20%).
@@ -214,24 +216,27 @@ Usa los datos del municipio para responder. Sé conciso (máximo 3 párrafos). S
     # Add streaming when latency becomes an issue.
     try:
         resp = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
+            headers={"Content-Type": "application/json"},
             json={
-                "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Datos del municipio:\n{json.dumps(data, ensure_ascii=False, default=str)}\n\nPregunta: {question}"},
+                "system_instruction": {
+                    "parts": [{"text": system_prompt}]
+                },
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [{"text": f"Datos del municipio:\n{json.dumps(data, ensure_ascii=False, default=str)}\n\nPregunta: {question}\n\nIMPORTANTE: No expliques tu razonamiento ni describas los datos. Escribe UNICAMENTE la respuesta final, sin prefacios."}]
+                    }
                 ],
-                "temperature": 0.3,
-                "max_tokens": 600,
+                "generationConfig": {
+                    "temperature": 0.3,
+                    "maxOutputTokens": 600,
+                },
             },
             timeout=30,
         )
         resp.raise_for_status()
-        answer = resp.json()["choices"][0]["message"]["content"]
+        answer = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
         return {"answer": answer}
     except Exception as e:
         return {"answer": f"Error al contactar el modelo: {str(e)[:200]}"}
