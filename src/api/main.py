@@ -220,7 +220,7 @@ Usa los datos del municipio para responder. Sé conciso (máximo 3 párrafos). S
                 "Content-Type": "application/json",
             },
             json={
-                "model": "openrouter/owl-alpha",
+                "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Datos del municipio:\n{json.dumps(data, ensure_ascii=False, default=str)}\n\nPregunta: {question}"},

@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/web/package.json src/web/package-lock.json* src/web/
 RUN cd src/web && npm install
-COPY src/web/ .
+COPY src/web/ src/web/
 RUN cd src/web && npm run build && \
     cp -r .next/static .next/standalone/.next/ && \
     mkdir -p .next/standalone/public && \
