@@ -38,7 +38,7 @@ export default function ReportePage({ params }) {
   if (loading) return <div className="empty-state" style={{ textAlign: "center", padding: 40 }}>Generando reporte...</div>;
   if (!data?.data?.length) return <div className="empty-state" style={{ padding: 40 }}>Sin datos para este municipio.</div>;
 
-  const r = data.data[0];
+  const r = data.data.find((item) => item.rendimiento_predicho != null) || data.data[0];
   const nivel = r.ira_nivel;
   const borderColor = nivel === "Crítico" ? "var(--color-critico)" : nivel === "Alto" ? "var(--color-alto)" : nivel === "Medio" ? "var(--color-medio)" : "var(--color-bajo)";
 
@@ -76,13 +76,13 @@ export default function ReportePage({ params }) {
         </div>
         <div className="report-card">
           <h3>Rendimiento (XGBoost)</h3>
-          <div className="value">{r.rendimiento_predicho != null ? `${r.rendimiento_predicho} t/ha` : "—"}</div>
-          <div className="sub">{r.rendimiento_ic_inf != null ? `IC 95%: [${r.rendimiento_ic_inf.toFixed(1)} – ${r.rendimiento_ic_sup.toFixed(1)}]` : ""}</div>
+          <div className="value">{r.rendimiento_predicho != null ? `${r.rendimiento_predicho} toneladas/ha` : "—"}</div>
+          <div className="sub">{r.rendimiento_ic_inf != null ? `Intervalo de Confianza 95%: [${r.rendimiento_ic_inf.toFixed(1)} – ${r.rendimiento_ic_sup.toFixed(1)}]` : ""}</div>
         </div>
         <div className="report-card">
           <h3>Rendimiento (Red Neuronal)</h3>
-          <div className="value">{r.rendimiento_nnet != null ? `${r.rendimiento_nnet} t/ha` : "—"}</div>
-          <div className="sub">{r.nnet_ic_inf != null ? `IC 95%: [${r.nnet_ic_inf.toFixed(1)} – ${r.nnet_ic_sup.toFixed(1)}]` : ""}</div>
+          <div className="value">{r.rendimiento_nnet != null ? `${r.rendimiento_nnet} toneladas/ha` : "—"}</div>
+          <div className="sub">{r.nnet_ic_inf != null ? `Intervalo de Confianza 95%: [${r.nnet_ic_inf.toFixed(1)} – ${r.nnet_ic_sup.toFixed(1)}]` : ""}</div>
         </div>
       </div>
 
@@ -100,17 +100,17 @@ export default function ReportePage({ params }) {
         <div className="report-grid">
           <div className="report-card">
             <h3>Pérdida de Bosque 2025</h3>
-            <div className="value">{defor.deforestacion_2025?.toFixed(0)} ha</div>
+            <div className="value">{defor.deforestacion_2025?.toFixed(0)} hectáreas</div>
             <div className="sub">Deforestación en el año más reciente</div>
           </div>
           <div className="report-card">
             <h3>Pérdida Total (5 años)</h3>
-            <div className="value">{defor.deforestacion_total_5y?.toFixed(0)} ha</div>
+            <div className="value">{defor.deforestacion_total_5y?.toFixed(0)} hectáreas</div>
             <div className="sub">Acumulado 2021–2025</div>
           </div>
           <div className="report-card">
             <h3>Pérdida Total (10 años)</h3>
-            <div className="value">{defor.deforestacion_total_10y?.toFixed(0)} ha</div>
+            <div className="value">{defor.deforestacion_total_10y?.toFixed(0)} hectáreas</div>
             <div className="sub">Acumulado 2016–2025</div>
           </div>
           <div className="report-card">
@@ -123,7 +123,7 @@ export default function ReportePage({ params }) {
 
       {ndvi?.data?.length > 0 && (
         <div className="report-card" style={{ marginBottom: "var(--space-xl)" }}>
-          <h3>Salud de la Vegetación (NDVI Satelital)</h3>
+          <h3>Salud de la Vegetación (NDVI — Índice de Vegetación Satelital)</h3>
           <p style={{ marginTop: 4 }}>Último NDVI: <strong>{ndvi.data[0].ndvi?.toFixed(3)}</strong> ({ndvi.data[0].periodo})</p>
           {ndvi.data[0].anomalia != null && (
             <p>Anomalía de vegetación: <strong>{ndvi.data[0].anomalia.toFixed(1)}%</strong></p>

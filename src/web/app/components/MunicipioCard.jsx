@@ -51,7 +51,7 @@ export default function MunicipioCard({ codigo, cultivo }) {
   if (loading) return <p className="empty-state">Cargando...</p>;
   if (!data?.data?.length) return <p className="empty-state">Sin datos para este municipio.</p>;
 
-  const r = data.data[0];
+  const r = data.data.find((item) => item.rendimiento_predicho != null) || data.data[0];
 
   const ask = async () => {
     const q = question.trim();
@@ -87,8 +87,8 @@ export default function MunicipioCard({ codigo, cultivo }) {
           <tr><td>SEP (Exposición)</td><td>{r.sep?.toFixed(3)}</td></tr>
           <tr><td>SVE (Vulnerabilidad)</td><td>{r.sve?.toFixed(3)}</td></tr>
           <tr><td>Anomalía</td><td>{r.anomaly_score != null ? r.anomaly_score.toFixed(2) : "—"}</td></tr>
-          <tr><td>Rendimiento (XGBoost)</td><td>{r.rendimiento_predicho != null ? `${r.rendimiento_predicho} t/ha` : "—"}</td></tr>
-          <tr><td>Rendimiento (Red Neuronal)</td><td>{r.rendimiento_nnet != null ? `${r.rendimiento_nnet} t/ha` : "—"}</td></tr>
+<tr><td>Rendimiento (XGBoost)</td><td>{r.rendimiento_predicho != null ? `${r.rendimiento_predicho} toneladas/ha` : "—"}</td></tr>
+<tr><td>Rendimiento (Red Neuronal)</td><td>{r.rendimiento_nnet != null ? `${r.rendimiento_nnet} toneladas/ha` : "—"}</td></tr>
         </tbody>
       </table>
 
@@ -120,7 +120,7 @@ export default function MunicipioCard({ codigo, cultivo }) {
       </div>
 
       <div className="card-section">
-        <p className="card-section-title">NDVI Satelital (MODIS)</p>
+        <p className="card-section-title">NDVI (Índice de Vegetación) Satelital — MODIS</p>
         {!ndviData && !loadingNdvi && (
           <button className="btn btn--ghost" onClick={loadNdvi} style={{ fontSize: "0.8125rem" }}>
             Cargar NDVI
@@ -149,9 +149,9 @@ export default function MunicipioCard({ codigo, cultivo }) {
         {loadingDefor && <p className="empty-state" style={{ padding: 0 }}>Cargando...</p>}
         {deforData?.data && (
           <div style={{ fontSize: "0.8125rem" }}>
-            <p>Pérdida bosque 2025: <strong>{deforData.data.deforestacion_2025?.toFixed(0)} ha</strong></p>
-            <p>Total últimos 5 años: <strong>{deforData.data.deforestacion_total_5y?.toFixed(0)} ha</strong></p>
-            <p>Total últimos 10 años: <strong>{deforData.data.deforestacion_total_10y?.toFixed(0)} ha</strong></p>
+            <p>Pérdida bosque 2025: <strong>{deforData.data.deforestacion_2025?.toFixed(0)} hectáreas</strong></p>
+            <p>Total últimos 5 años: <strong>{deforData.data.deforestacion_total_5y?.toFixed(0)} hectáreas</strong></p>
+            <p>Total últimos 10 años: <strong>{deforData.data.deforestacion_total_10y?.toFixed(0)} hectáreas</strong></p>
             <p>Tendencia: <strong>{deforData.data.deforestacion_tendencia_label}</strong></p>
             <p style={{ color: "var(--color-text-tertiary)", marginTop: 2 }}>Fuente: Global Forest Watch (Hansen/UMD)</p>
           </div>

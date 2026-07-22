@@ -86,7 +86,7 @@ export default function AcercaPage() {
           </div>
           <div className="about-card">
             <div className="about-card-title">Predicción de rendimiento</div>
-            <p>XGBoost y Red Neuronal que predicen el rendimiento esperado (t/ha) usando 22 variables. Explicabilidad vía SHAP para entender qué factores disparan cada alerta.</p>
+            <p>XGBoost y Red Neuronal que predicen el rendimiento esperado (toneladas/ha) usando 22 variables. Explicabilidad vía SHAP para entender qué factores disparan cada alerta.</p>
           </div>
           <div className="about-card">
             <div className="about-card-title">Asistente conversacional</div>
