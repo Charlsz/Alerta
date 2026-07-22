@@ -178,9 +178,9 @@ def chat_municipio(codigo: str, body: dict = None):
     if not question:
         return {"answer": "Escribe una pregunta sobre el municipio."}
 
-    api_key = os.getenv("GOOGLE_AI_API_KEY")
+    api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
-        return JSONResponse({"answer": "El asistente no está configurado (falta GOOGLE_AI_API_KEY)."}, status_code=503)
+        return JSONResponse({"answer": "El asistente no está configurado (falta OPENROUTER_API_KEY)."}, status_code=503)
 
     # fetch municipio data
     con = _con()
@@ -216,27 +216,24 @@ Usa los datos del municipio para responder. Sé conciso (máximo 3 párrafos). S
     # Add streaming when latency becomes an issue.
     try:
         resp = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
-            headers={"Content-Type": "application/json"},
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
             json={
-                "system_instruction": {
-                    "parts": [{"text": system_prompt}]
-                },
-                "contents": [
-                    {
-                        "role": "user",
-                        "parts": [{"text": f"Datos del municipio:\n{json.dumps(data, ensure_ascii=False, default=str)}\n\nPregunta: {question}\n\nIMPORTANTE: No expliques tu razonamiento ni describas los datos. Escribe UNICAMENTE la respuesta final, sin prefacios."}]
-                    }
+                "model": "nvidia/nemotron-3-super-120b-a12b:free",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Datos del municipio:\n{json.dumps(data, ensure_ascii=False, default=str)}\n\nPregunta: {question}\n\nIMPORTANTE: No expliques tu razonamiento ni describas los datos. Escribe UNICAMENTE la respuesta final, sin prefacios."},
                 ],
-                "generationConfig": {
-                    "temperature": 0.3,
-                    "maxOutputTokens": 600,
-                },
+                "temperature": 0.3,
+                "max_tokens": 600,
             },
             timeout=30,
         )
         resp.raise_for_status()
-        answer = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        answer = resp.json()["choices"][0]["message"]["content"]
         return {"answer": answer}
     except Exception as e:
         return {"answer": f"Error al contactar el modelo: {str(e)[:200]}"}
