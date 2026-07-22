@@ -23,7 +23,7 @@ export default function ReportePage({ params }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          question: "Genera un reporte ejecutivo de riesgo agrícola para este municipio. Incluye: resumen del nivel de riesgo, desglose de los 3 componentes (SPC, SEP, SVE), predicción de rendimiento vs. promedio histórico, y 3 recomendaciones de mitigación concretas. Sin formato markdown ni viñetas, solo texto plano en párrafos. Máximo 400 palabras.",
+          question: "Escribe un análisis corto de riesgo agrícola para este municipio en lenguaje simple para un agricultor. No uses guiones, asteriscos, viñetas ni caracteres especiales. Solo 1 o 2 párrafos de texto plano. Incluye: el nivel de riesgo actual, los componentes mas preocupantes (SPC, SEP o SVE), el rendimiento esperado del cultivo, y 1 o 2 recomendaciones practicas. Maximo 150 palabras.",
         }),
       }).then((r) => r.json()),
     ]).then(([d, df, n, m, r]) => {

@@ -199,7 +199,7 @@ def chat_municipio(codigo: str, body: dict = None):
 
     data = [dict(zip(_IRA_COLUMNS, r)) for r in rows]
 
-    system_prompt = """Eres un asistente experto en riesgo climático agrícola para Colombia, integrado en la plataforma "Alerta". Tu función es explicar los indicadores de riesgo agrícola a funcionarios públicos y agricultores en lenguaje claro y sencillo. Sin formato markdown ni viñetas, solo texto plano.
+    system_prompt = """Eres un asistente experto en riesgo climático agrícola para Colombia, integrado en la plataforma "Alerta". Tu función es explicar los indicadores de riesgo agrícola a funcionarios públicos y agricultores en lenguaje claro y sencillo. Sin formato markdown, sin viñetas, sin guiones, sin asteriscos. Solo texto plano con puntos y comas.
 
 INDICADORES:
 - IRA (Índice de Riesgo Agrícola): 0-1, compuesto por SPC (peligro climático, peso 50%), SEP (exposición productiva, peso 30%), SVE (vulnerabilidad económica, peso 20%).
