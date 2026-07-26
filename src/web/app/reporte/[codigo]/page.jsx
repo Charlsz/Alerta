@@ -33,7 +33,7 @@ export default function ReportePage({ params, searchParams }) {
         body: JSON.stringify({
           cultivo: cultivoParam,
           periodo: periodoParam,
-          question: "Responde directo, sin explicar tu razonamiento. Analiza el riesgo agrícola de este municipio en lenguaje simple para un agricultor. Sin guiones, asteriscos, viñetas ni caracteres especiales. Solo 1 o 2 párrafos de texto plano. Incluye: nivel de riesgo actual, componentes mas preocupantes (SPC, SEP o SVE), rendimiento esperado del cultivo, y 1 o 2 recomendaciones practicas. Maximo 150 palabras. REGLA IMPORTANTE: No expliques tu razonamiento ni muestres tu proceso de análisis. Responde ÚNICAMENTE el texto final del análisis, sin prefacios, sin introducciones como 'El usuario quiere...', sin 'Basado en los datos...'. Empieza directamente con la respuesta.",
+          question: `Responde directo, sin explicar tu razonamiento. Analiza el riesgo agrícola de ${cultivoParam ? `este cultivo (${cultivoParam}) en ` : ""}este municipio en lenguaje simple para un agricultor. Sin guiones, asteriscos, viñetas ni caracteres especiales. Solo 1 o 2 párrafos de texto plano. Incluye: nivel de riesgo actual, componentes mas preocupantes (SPC, SEP o SVE), rendimiento esperado del cultivo, y 1 o 2 recomendaciones practicas. Maximo 150 palabras. REGLA IMPORTANTE: No expliques tu razonamiento ni muestres tu proceso de análisis. Responde ÚNICAMENTE el texto final del análisis, sin prefacios, sin introducciones como 'El usuario quiere...', sin 'Basado en los datos...'. Empieza directamente con la respuesta.`,
         }),
       }).then((r) => r.json()),
     ]).then(([d, df, n, m, r]) => {

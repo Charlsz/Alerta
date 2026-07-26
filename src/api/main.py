@@ -221,6 +221,12 @@ def chat_municipio(codigo: str, body: dict = None):
 
     data = [dict(zip(_IRA_COLUMNS, r)) for r in rows]
 
+    scope = f"municipio"
+    if cultivo and periodo:
+        scope = f"cultivo {cultivo} (período {periodo}) en el municipio"
+    elif cultivo:
+        scope = f"cultivo {cultivo} en el municipio"
+
     system_prompt = """Eres un asistente experto en riesgo climático agrícola para Colombia. Habla en lenguaje claro y sencillo como para un agricultor. No uses formato markdown, ni viñetas, ni guiones, ni asteriscos. Solo texto plano con puntos y comas.
 
 REGLA IMPORTANTE: No expliques tu razonamiento ni muestres tu proceso de análisis. Responde ÚNICAMENTE el texto final del análisis, sin prefacios, sin introducciones como "El usuario quiere...", sin "Basado en los datos...". Empieza directamente con la respuesta.
@@ -232,7 +238,7 @@ INDICADORES:
 - Rendimiento predicho (t/ha): estimación del próximo rendimiento del cultivo con intervalo de confianza del 95%.
 - Importancia top 3: variables que más influyen en el rendimiento predicho.
 
-Usa los datos del municipio para responder. Sé conciso (máximo 3 párrafos). Si no sabes algo, dilo honestamente."""
+Usa los datos del {scope} para responder. Sé conciso (máximo 3 párrafos). Si no sabes algo, dilo honestamente."""
 
     # ponytail: single prompt call, no streaming for now.
     # Add streaming when latency becomes an issue.
@@ -247,7 +253,7 @@ Usa los datos del municipio para responder. Sé conciso (máximo 3 párrafos). S
                 "model": "nvidia/nemotron-3-super-120b-a12b:free",
                 "messages": [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Datos del municipio:\n{json.dumps(data, ensure_ascii=False, default=str)}\n\nPregunta: {question}\n\nIMPORTANTE: No expliques tu razonamiento ni describas los datos. Escribe UNICAMENTE la respuesta final, sin prefacios."},
+                    {"role": "user", "content": f"Datos del {scope}:\n{json.dumps(data, ensure_ascii=False, default=str)}\n\nPregunta: {question}\n\nIMPORTANTE: No expliques tu razonamiento ni describas los datos. Escribe UNICAMENTE la respuesta final, sin prefacios."},
                 ],
                 "temperature": 0.3,
                 "max_tokens": 600,
