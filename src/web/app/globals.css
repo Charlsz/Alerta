@@ -443,6 +443,43 @@ a:hover { text-decoration: underline; }
   white-space: nowrap;
 }
 
+/* ======== Top-3 Feature Importance ======== */
+
+.top3-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.top3-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: 0.75rem;
+}
+
+.top3-rank {
+  font-weight: 700;
+  color: var(--text-tertiary);
+  min-width: 14px;
+}
+
+.top3-var {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.top3-shap {
+  color: var(--text-secondary);
+  font-family: monospace;
+  font-size: 0.6875rem;
+}
+
 .context-note {
   font-size: 0.6875rem;
   color: var(--text-tertiary);

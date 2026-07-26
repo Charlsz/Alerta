@@ -222,6 +222,30 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
         </div>
       </div>
 
+      {/* Importancia top-3 variables */}
+      {(() => {
+        try {
+          const top3 = typeof r.importancia_top3 === "string" ? JSON.parse(r.importancia_top3) : r.importancia_top3;
+          if (!Array.isArray(top3) || top3.length === 0) return null;
+          return (
+            <div className="card-section">
+              <h4 className="section-label">Variables más influyentes</h4>
+              <div className="top3-grid">
+                {top3.map((item, i) => (
+                  <div key={i} className="top3-chip">
+                    <span className="top3-rank">{i + 1}</span>
+                    <span className="top3-var">{item.var}</span>
+                    <span className="top3-shap">{item.shap?.toFixed(4)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        } catch {
+          return null;
+        }
+      })()}
+
       {/* Deforestación */}
       {deforData?.data && !deforData?.error && (
         <div className="card-section">
