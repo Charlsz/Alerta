@@ -1,6 +1,6 @@
 """Normalización min-max robusta (p1-p99) de features para el IRA.
 
-Actualizado para incluir las 14 variables SPC, 6 SEP, 6 SVE = 26 variables.
+Actualizado para incluir las 15 variables SPC, 6 SEP, 6 SVE = 27 variables.
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# ── Sub-índice de Peligro Climático (SPC) — 14 variables ────────────────────
+# ── Sub-índice de Peligro Climático (SPC) — 15 variables ────────────────────
 _SPC_COLS = [
     # Precipitación (originales)
     "precip_acum_7d",
@@ -22,15 +22,17 @@ _SPC_COLS = [
     "tmax_media_7d",
     "tmax_anomalia_30d",
     "dias_tmax_critica",
-    # Humedad del aire (nuevas)
+    # Humedad del aire
     "humedad_media_30d",
     "humedad_anomalia_30d",
-    # Presión atmosférica (nuevas)
+    # Presión atmosférica
     "presion_media_30d",
     "presion_anomalia_30d",
-    # Temperatura ambiente (nuevas)
+    # Temperatura ambiente
     "tambiente_media_30d",
     "tmin_media_30d",
+    # Viento
+    "viento_media_30d",
 ]
 
 # ── Sub-índice de Exposición Productiva (SEP) — 6 variables ─────────────────
@@ -55,7 +57,7 @@ _SVE_COLS = [
     "pct_rural",
 ]
 
-ALL_FEATURE_COLS = _SPC_COLS + _SEP_COLS + _SVE_COLS  # 26 variables
+ALL_FEATURE_COLS = _SPC_COLS + _SEP_COLS + _SVE_COLS  # 27 variables
 
 
 def normalize(df: pd.DataFrame) -> pd.DataFrame:

@@ -325,7 +325,7 @@ def _build_viento(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build(force: bool = False) -> None:
-    """Genera la tabla `features_clima` (14 variables SPC) en DuckDB."""
+    """Genera la tabla `features_clima` (15 variables SPC) en DuckDB."""
     con = get_connection()
 
     if not force:

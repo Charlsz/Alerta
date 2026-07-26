@@ -112,7 +112,7 @@ Sobre el IRA base se aplican cuatro componentes de inteligencia artificial:
 
 | Sub-índice | Variables | Fuente |
 |---|---|---|
-| SPC (14) | precip_acum_7d, precip_acum_30d, precip_anomalia_30d, dias_secos_consecutivos, dias_lluvia_extrema, tmax_media_7d, tmax_anomalia_30d, dias_tmax_critica, humedad_media_30d, humedad_anomalia_30d, presion_media_30d, presion_anomalia_30d, tambiente_media_30d, tmin_media_30d | IDEAM |
+| SPC (15) | precip_acum_7d, precip_acum_30d, precip_anomalia_30d, dias_secos_consecutivos, dias_lluvia_extrema, tmax_media_7d, tmax_anomalia_30d, dias_tmax_critica, humedad_media_30d, humedad_anomalia_30d, presion_media_30d, presion_anomalia_30d, tambiente_media_30d, tmin_media_30d, viento_media_30d | IDEAM |
 | SEP (6) | area_sembrada, area_cosechada, rendimiento_promedio, rendimiento_cv, participacion_municipal, fase_fenologica | EVA + EVA Calendario |
 | SVE (6) | insumos_nivel, insumos_anomalia_12m, insumos_delta_3m, nbi_total, poblacion_rural, pct_rural | UPRA + DANE |
 
@@ -131,7 +131,7 @@ Sobre el IRA base se aplican cuatro componentes de inteligencia artificial:
 ```
 
 - **Ingesta**: scripts independientes descargan datos de IDEAM, EVA, UPRA, IGAC → Parquet
-- **Feature engineering**: DuckDB SQL construye tablas limpias y 26 variables por municipio × cultivo
+- **Feature engineering**: DuckDB SQL construye tablas limpias y 27 variables por municipio × cultivo
 - **Riesgo**: IRA + IsolationForest + RandomForest para predicción de rendimiento
 - **API**: FastAPI con 9 endpoints REST (filters, ranking, municipios, municipio detalle, chat LLM, multiagent, ndvi, deforestacion, status)
 - **Frontend**: Next.js 15 con Leaflet para mapa interactivo, chat asistente, reportes PDF
@@ -268,7 +268,7 @@ docker compose up -d
 
 | Tabla / Archivo | Contenido |
 |---|---|
-| `features_municipio_cultivo` | 26 variables por municipio × cultivo × período |
+| `features_municipio_cultivo` | 27 variables por municipio × cultivo × período |
 | `features_clima` | 15 variables climáticas (incl. viento) por municipio × mes |
 | `features_ndvi` | NDVI medio mensual + anomalía por municipio |
 | `features_deforestacion` | Pérdida de cobertura arbórea por municipio (2001–2025) |

@@ -11,9 +11,8 @@ from src.ingestion._soda import fetch_soda
 
 logger = logging.getLogger(__name__)
 
-# Resource IDs en datos.gov.co
+# Resource ID en datos.gov.co
 _EVA_ID = "2pnw-mmge"
-_EVA_VISTA_ID = "fp29-z39g"
 
 
 def _save(records: list[dict], output_path: Path, label: str) -> None:
@@ -25,10 +24,9 @@ def _save(records: list[dict], output_path: Path, label: str) -> None:
 
 
 def run(force: bool = False) -> None:
-    """Descarga EVA y EVA Vista a data/raw/."""
+    """Descarga EVA a data/raw/."""
     datasets = [
         (_EVA_ID, Path(config.data_raw) / "eva.parquet", "EVA"),
-        (_EVA_VISTA_ID, Path(config.data_raw) / "eva_vista.parquet", "EVA Vista"),
     ]
 
     for dataset_id, output_path, label in datasets:

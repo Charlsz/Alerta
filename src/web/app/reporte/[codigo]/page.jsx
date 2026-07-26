@@ -26,7 +26,7 @@ export default function ReportePage({ params, searchParams }) {
       fetch(detailUrl).then((r) => r.json()),
       fetch(`/api/municipio/${codigo}/deforestacion`).then((r) => r.json()),
       fetch(`/api/municipio/${codigo}/ndvi`).then((r) => r.json()),
-      fetch(`/api/municipio/${codigo}/multiagent`).then((r) => r.json()),
+      fetch(`/api/municipio/${codigo}/multiagent?cultivo=${encodeURIComponent(cultivoParam || '')}&periodo=${encodeURIComponent(periodoParam || '')}`).then((r) => r.json()),
       fetch(`/api/municipio/${codigo}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

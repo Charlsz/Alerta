@@ -5,7 +5,7 @@ esperado (t/ha) del próximo ciclo agrícola por municipio y cultivo.
 
 Arquitectura:
     - Modelo base: XGBoost Regressor (o RandomForest como fallback)
-    - Features: 26 variables de features_municipio_cultivo
+    - Features: 27 variables de features_municipio_cultivo
     - Target: rendimiento del período siguiente (t+1)
     - Estrategia: un modelo por cultivo si hay >= MIN_SAMPLES; global otherwise
     - Explicabilidad: SHAP TreeExplainer
@@ -156,7 +156,7 @@ def train_and_predict(df: pd.DataFrame, force: bool = False) -> pd.DataFrame:
     """Entrena un modelo por cultivo y genera predicciones de rendimiento.
 
     Args:
-        df: DataFrame con features_municipio_cultivo (26 vars + rendimiento_promedio).
+        df: DataFrame con features_municipio_cultivo (27 vars + rendimiento_promedio).
         force: Si True, re-entrena aunque ya exista el modelo.
 
     Returns:

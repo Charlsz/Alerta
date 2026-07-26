@@ -2,7 +2,7 @@
 
 Fuentes:
     - clean_insumos          (índice precios insumos agrícolas UPRA)
-    - clean_dane_municipios  (NBI, población rural — DANE)  ← nuevo
+    - clean_dane_nbi         (NBI, población rural — DANE)
 
 Variables que construye:
     Insumos (3 vars, serie mensual nacional):
@@ -57,11 +57,9 @@ def _build_dane(con) -> pd.DataFrame:
     empty = pd.DataFrame(columns=["codigo_municipio", "nbi_total",
                                   "poblacion_rural", "pct_rural"])
 
-    # Try new clean_dane_nbi first (DANE Excel), fall back to clean_dane_municipios (SODA)
-    source = "clean_dane_nbi" if table_exists(con, "clean_dane_nbi") else \
-             ("clean_dane_municipios" if table_exists(con, "clean_dane_municipios") else None)
+    source = "clean_dane_nbi" if table_exists(con, "clean_dane_nbi") else None
     if not source:
-        logger.warning("[vulnerabilidad] Ninguna tabla DANE disponible. Vars serán NaN.")
+        logger.warning("[vulnerabilidad] clean_dane_nbi no disponible. Vars serán NaN.")
         return empty
 
     cols = [r[0] for r in con.execute(

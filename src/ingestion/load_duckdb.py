@@ -65,7 +65,6 @@ def run(force: bool = False) -> None:  # noqa: ARG001
         # Existentes
         (raw / "ideam_estaciones.parquet",  "raw_estaciones"),
         (raw / "eva.parquet",               "raw_eva"),
-        (raw / "eva_vista.parquet",         "raw_eva_vista"),
         (raw / "eva_calendario.parquet",    "raw_eva_calendario"),
         (raw / "insumos.parquet",           "raw_insumos"),
         (raw / "ideam_precip.parquet",      "raw_precipitacion"),

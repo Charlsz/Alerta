@@ -262,21 +262,31 @@ Usa los datos del municipio para responder. Sé conciso (máximo 3 párrafos). S
 
 
 @app.get("/api/municipio/{codigo}/multiagent")
-def multiagent_municipio(codigo: str):
-    """Análisis multi-agente del municipio."""
+def multiagent_municipio(codigo: str, cultivo: str = None, periodo: str = None):
+    """Análisis multi-agente del municipio, opcionalmente filtrado por cultivo/período."""
     con = _con()
     if not table_exists(con, "ira_resultados"):
         con.close()
         return {"error": "no data"}
 
-    rows = con.execute("""
+    where = ["r.codigo_municipio = ?"]
+    params = [codigo]
+    if cultivo:
+        where.append("r.cultivo = ?")
+        params.append(cultivo)
+    if periodo:
+        where.append("r.periodo = ?")
+        params.append(periodo)
+    clause = " AND ".join(where)
+
+    rows = con.execute(f"""
         SELECT r.*, m.nombre_municipio, m.nombre_departamento
         FROM ira_resultados r
         LEFT JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio
-        WHERE r.codigo_municipio = ?
+        WHERE {clause}
         ORDER BY r.periodo DESC
         LIMIT 30
-    """, [codigo]).fetchall()
+    """, params).fetchall()
     con.close()
 
     if not rows:

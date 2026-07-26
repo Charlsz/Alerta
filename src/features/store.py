@@ -24,7 +24,7 @@ _TABLE = "features_municipio_cultivo"
 
 
 def build(force: bool = False) -> None:
-    """Une las cuatro capas de features en la tabla maestra (26 variables)."""
+    """Une las cuatro capas de features en la tabla maestra (27 variables)."""
     con = get_connection()
 
     if not force:
@@ -40,7 +40,7 @@ def build(force: bool = False) -> None:
         dane_join = "LEFT JOIN features_dane d ON c.codigo_municipio = d.codigo_municipio"
         dane_cols = "d.nbi_total, d.poblacion_rural, d.pct_rural"
 
-    logger.info("[store] Construyendo tabla maestra de features (26 variables)...")
+    logger.info("[store] Construyendo tabla maestra de features (27 variables)...")
 
     sql = f"""
         CREATE OR REPLACE TABLE {_TABLE} AS
@@ -50,7 +50,7 @@ def build(force: bool = False) -> None:
             p.cultivo,
             c.periodo,
 
-            -- SPC: peligro climático (14 variables)
+            -- SPC: peligro climático (15 variables)
             c.precip_acum_7d,
             c.precip_acum_30d,
             c.precip_anomalia_30d,
@@ -65,6 +65,7 @@ def build(force: bool = False) -> None:
             c.presion_anomalia_30d,
             c.tambiente_media_30d,
             c.tmin_media_30d,
+            c.viento_media_30d,
 
             -- SEP: exposición productiva (6 variables)
             p.area_sembrada,

@@ -60,7 +60,7 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
     Promise.all([
       fetch(`/api/municipio/${codigo}/deforestacion`).then(r => r.json()).catch(() => null),
       fetch(`/api/municipio/${codigo}/ndvi`).then(r => r.json()).catch(() => null),
-      fetch(`/api/municipio/${codigo}/multiagent`).then(r => r.json()).catch(() => null),
+      fetch(`/api/municipio/${codigo}/multiagent?cultivo=${encodeURIComponent(cultivo || '')}&periodo=${encodeURIComponent(periodo || '')}`).then(r => r.json()).catch(() => null),
     ]).then(([d, n, m]) => {
       setDeforData(d);
       setNdviData(n);
