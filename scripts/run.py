@@ -13,6 +13,9 @@ import sys
 import time
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 logging.basicConfig(

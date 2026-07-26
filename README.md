@@ -175,29 +175,78 @@ Sobre el IRA base se aplican cuatro componentes de inteligencia artificial:
 
 ## Cómo ejecutar
 
+### 0. Configurar variables de entorno
+
+Copia `.env.example` a `.env` y completa las claves necesarias:
+
 ```bash
-# 0. Configurar API key para el asistente IA (opcional para chat/reportes)
-# Copiar .env.example a .env y agregar OPENROUTER_API_KEY
+cp .env.example .env    # Linux/Mac
+copy .env.example .env  # Windows
+```
 
-# 1. Instalar dependencias
+| Variable | Requerida | Propósito |
+|----------|-----------|-----------|
+| `OPENROUTER_API_KEY` | No (opcional) | Asistente IA y reportes PDF |
+| `GFW_API_KEY` | No (opcional) | Descarga datos de deforestación GFW |
+| `SODA_APP_TOKEN` | No (opcional) | Evita rate limiting en datos.gov.co |
+
+### 1. Instalar dependencias
+
+**Windows (PowerShell):**
+```powershell
+pip install -r requirements.txt
+cd src/web; npm install
+```
+
+**Linux / Mac:**
+```bash
 make install
+# o manual:
+pip install -r requirements.txt
+cd src/web && npm install
+```
 
-# 2. Pipeline completo (horas, dependiendo de internet)
-make pipeline          # equivalente a: make ingest && make features && make risk
+### 2. Pipeline de datos (solo necesario la primera vez o para actualizar)
 
-# O paso a paso:
-python scripts/run.py ingest          # descarga datos crudos
-python scripts/run.py features        # construye variables en DuckDB
-python scripts/run.py risk --force    # calcula IRA + anomalías + predicciones
+```bash
+# Todo en uno:
+python scripts/run.py ingest     # descarga datos crudos (~minutos)
+python scripts/run.py features   # construye variables en DuckDB
+python scripts/run.py risk       # calcula IRA + anomalías + predicciones
 
-# 3. Iniciar servicios
-make api              # uvicorn en :8000
-make web              # Next.js en :3000
+# O por partes con --force para re-ejecutar:
+python scripts/run.py risk --force
+python scripts/run.py features --only clima
+```
 
-# 4. Abrir navegador en http://localhost:3000
+### 3. Iniciar servicios
 
-# 5. (Opcional) Iniciar con Docker
-make docker-build && make docker-up
+**Terminal 1 — API (FastAPI):**
+```bash
+uvicorn src.api.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+**Terminal 2 — Frontend (Next.js):**
+```bash
+cd src/web
+npm run dev
+```
+
+**Linux/Mac también pueden usar `make`:**
+```bash
+make api   # uvicorn en :8000
+make web   # Next.js en :3000
+```
+
+> **Nota sobre datos de deforestación GFW:** Los archivos `data/raw/raw_gfw_subnational_2_*.json` no están trackeados en git (~21 MB). Si al ejecutar el pipeline ves errores de GFW, coloca `GFW_API_KEY` en `.env` (solicítala en https://data-api.globalforestwatch.org/) o pide los archivos a otro miembro del equipo y ponlos en `data/raw/`.
+
+### 4. Abrir navegador en `http://localhost:3000`
+
+### 5. (Opcional) Despliegue con Docker
+
+```bash
+docker compose build
+docker compose up -d
 ```
 
 ## Endpoints de la API
