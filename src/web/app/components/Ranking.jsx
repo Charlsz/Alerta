@@ -17,6 +17,7 @@ export default function Ranking({ onSelect }) {
       nombre_municipio: f.properties.municipio,
       nombre_departamento: f.properties.departamento,
       cultivo: f.properties.cultivo,
+      periodo: f.properties.periodo,
       ira_score: f.properties.ira_score,
       ira_nivel: f.properties.ira_nivel,
     }));
@@ -61,7 +62,7 @@ export default function Ranking({ onSelect }) {
           {pageRows.map((r, i) => (
             <tr
               key={r.codigo_municipio}
-              onClick={() => onSelect?.({ codigo: r.codigo_municipio, cultivo: r.cultivo })}
+              onClick={() => onSelect?.({ codigo: r.codigo_municipio, cultivo: r.cultivo, periodo: r.periodo })}
             >
               <td>{start + i + 1}</td>
               <td>{r.nombre_municipio || r.codigo_municipio}</td>

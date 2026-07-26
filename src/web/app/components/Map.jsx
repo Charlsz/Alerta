@@ -34,7 +34,7 @@ export default function Map({ onSelect }) {
             `<b>${f.properties.municipio}</b><br/>` +
             `<span style="font-size:11px">Máximo IRA: ${f.properties.ira_nivel} (${f.properties.ira_score?.toFixed(3)}) — ${f.properties.cultivo}</span>`
           );
-          layer.on("click", () => onSelect?.({ codigo: f.properties.codigo_municipio, cultivo: f.properties.cultivo }));
+          layer.on("click", () => onSelect?.({ codigo: f.properties.codigo_municipio, cultivo: f.properties.cultivo, periodo: f.properties.periodo }));
         },
       }).addTo(mapRef.current);
     });

@@ -3,9 +3,10 @@ import { useState } from "react";
 import useAPI from "../hooks/useAPI";
 import RiskBadge from "./RiskBadge";
 
-export default function MunicipioCard({ codigo, cultivo }) {
+export default function MunicipioCard({ codigo, cultivo, periodo }) {
   const params = new URLSearchParams();
   if (cultivo) params.set("cultivo", cultivo);
+  if (periodo) params.set("periodo", periodo);
   const { data, loading } = useAPI(codigo ? `/api/municipio/${codigo}?${params}` : null);
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState("");
@@ -51,7 +52,7 @@ export default function MunicipioCard({ codigo, cultivo }) {
   if (loading) return <p className="empty-state">Cargando...</p>;
   if (!data?.data?.length) return <p className="empty-state">Sin datos para este municipio.</p>;
 
-  const r = data.data.find((item) => item.rendimiento_predicho != null) || data.data[0];
+  const r = data.data[0];
 
   const ask = async () => {
     const q = question.trim();

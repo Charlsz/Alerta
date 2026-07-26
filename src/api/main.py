@@ -146,17 +146,21 @@ def get_municipios():
 
 
 @app.get("/api/municipio/{codigo}")
-def get_municipio(codigo: str, cultivo: str = None):
+def get_municipio(codigo: str, cultivo: str = None, periodo: str = None):
     con = _con()
     if not table_exists(con, "ira_resultados"):
         con.close()
         return {"error": "no data"}
 
     where = ["r.codigo_municipio = ?"]
+    params = [codigo]
     if cultivo:
         where.append("r.cultivo = ?")
+        params.append(cultivo)
+    if periodo:
+        where.append("r.periodo = ?")
+        params.append(periodo)
     clause = " AND ".join(where)
-    params = [codigo] + ([cultivo] if cultivo else [])
 
     rows = con.execute(f"""
         SELECT r.*, m.nombre_municipio, m.nombre_departamento

@@ -38,7 +38,7 @@ export default function ReportePage({ params }) {
   if (loading) return <div className="empty-state" style={{ textAlign: "center", padding: 40 }}>Generando reporte...</div>;
   if (!data?.data?.length) return <div className="empty-state" style={{ padding: 40 }}>Sin datos para este municipio.</div>;
 
-  const r = data.data.find((item) => item.rendimiento_predicho != null) || data.data[0];
+  const r = data.data[0];
   const nivel = r.ira_nivel;
   const borderColor = nivel === "Crítico" ? "var(--color-critico)" : nivel === "Alto" ? "var(--color-alto)" : nivel === "Medio" ? "var(--color-medio)" : "var(--color-bajo)";
 
