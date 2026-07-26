@@ -152,7 +152,7 @@ Sobre el IRA base se aplican cuatro componentes de inteligencia artificial:
 - SHAP (explicabilidad de modelos)
 
 ### Inteligencia Artificial generativa
-- OpenRouter API (modelo `openrouter/owl-alpha`)
+- OpenRouter API (modelo `nvidia/nemotron-3-super-120b-a12b:free`)
 - Integración LLM para chat conversacional y reportes automatizados
 
 ### Backend y API

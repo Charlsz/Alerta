@@ -24,7 +24,7 @@ Sirve los resultados del motor de riesgo al frontend e integra el asistente conv
 
 ## Dependencias externas
 
-- `OPENROUTER_API_KEY` en `.env` para el endpoint `/chat` (modelo `openrouter/owl-alpha`)
+- `OPENROUTER_API_KEY` en `.env` para el endpoint `/chat` (modelo `nvidia/nemotron-3-super-120b-a12b:free`)
 
 ## Desarrollo
 
