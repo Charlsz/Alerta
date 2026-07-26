@@ -39,6 +39,7 @@ STEPS = {
         ("tambiente",     "src.ingestion.ideam_tambiente"),
         ("viento",        "src.ingestion.ideam_viento"),
         ("ndvi",          "src.ingestion.ndvi"),
+        ("deforestacion", "src.ingestion.gfw_deforestacion"),
     ],
     "features": [
         ("load_duckdb",    "src.ingestion.load_duckdb"),

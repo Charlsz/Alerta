@@ -46,6 +46,7 @@ data/alerta.db
 data/warehouse.db
 data/models/
 !data/raw/.gitkeep
+!data/raw/raw_gfw_subnational_2_*.json
 !data/samples/
 !data/samples/**
 
