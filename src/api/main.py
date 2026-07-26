@@ -75,6 +75,7 @@ def get_filters():
 def get_ranking(
     cultivo: str = None,
     departamento: str = None,
+    search: str = None,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
@@ -84,13 +85,18 @@ def get_ranking(
         return {"data": [], "total": 0}
 
     where = ["1=1"]
+    params = []
     if cultivo:
         where.append("r.cultivo = ?")
+        params.append(cultivo)
     if departamento:
         where.append("m.nombre_departamento = ?")
+        params.append(departamento)
+    if search:
+        where.append("(m.nombre_municipio ILIKE ? OR m.nombre_departamento ILIKE ? OR r.cultivo ILIKE ?)")
+        q = f"%{search}%"
+        params.extend([q, q, q])
     clause = " AND ".join(where)
-
-    params = [p for p in [cultivo, departamento] if p]
 
     total = con.execute(f"SELECT COUNT(*) FROM ira_resultados r LEFT JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio WHERE {clause}", params).fetchone()[0]
     rows = con.execute(f"""

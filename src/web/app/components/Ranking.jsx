@@ -1,45 +1,39 @@
 "use client";
-import { useState, useMemo } from "react";
-import useAPI from "../hooks/useAPI";
+import { useState, useEffect, useCallback } from "react";
 import RiskBadge from "./RiskBadge";
 
 const PAGE_SIZE = 50;
 
 export default function Ranking({ onSelect }) {
-  const { data, loading } = useAPI("/api/municipios");
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const allRows = useMemo(() => {
-    if (!data?.features) return [];
-    let list = data.features.map((f) => ({
-      codigo_municipio: f.properties.codigo_municipio,
-      nombre_municipio: f.properties.municipio,
-      nombre_departamento: f.properties.departamento,
-      cultivo: f.properties.cultivo,
-      periodo: f.properties.periodo,
-      ira_score: f.properties.ira_score,
-      ira_nivel: f.properties.ira_nivel,
-    }));
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter((r) =>
-        [r.nombre_municipio, r.nombre_departamento, r.cultivo, r.ira_nivel,
-         String(r.ira_score ?? "")]
-          .some((v) => v?.toLowerCase().includes(q))
-      );
+  const fetchPage = useCallback(async (q, p) => {
+    setLoading(true);
+    const params = new URLSearchParams({ limit: PAGE_SIZE, offset: (p - 1) * PAGE_SIZE });
+    if (q) params.set("search", q);
+    try {
+      const res = await fetch(`/api/ranking?${params}`);
+      const json = await res.json();
+      setRows(json.data || []);
+      setTotal(json.total || 0);
+    } catch {
+      setRows([]);
+      setTotal(0);
     }
-    list.sort((a, b) => (b.ira_score ?? 0) - (a.ira_score ?? 0));
-    return list;
-  }, [data, search]);
+    setLoading(false);
+  }, []);
 
-  const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const pageRows = allRows.slice(start, start + PAGE_SIZE);
+  useEffect(() => { fetchPage(search, page); }, [search, page, fetchPage]);
 
-  if (loading) return <p className="empty-state">Cargando ranking...</p>;
-  if (!allRows.length) return <p className="empty-state">Sin datos.</p>;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const start = (page - 1) * PAGE_SIZE;
+
+  if (loading && !rows.length) return <p className="empty-state">Cargando ranking...</p>;
+  if (!rows.length) return <p className="empty-state">Sin datos.</p>;
 
   return (
     <div className="table-wrap">
@@ -50,7 +44,7 @@ export default function Ranking({ onSelect }) {
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
         />
-        <span className="search-count">{allRows.length} resultados</span>
+        <span className="search-count">{total} resultados</span>
       </div>
       <table className="table">
         <thead>
@@ -59,9 +53,9 @@ export default function Ranking({ onSelect }) {
           </tr>
         </thead>
         <tbody>
-          {pageRows.map((r, i) => (
+          {rows.map((r, i) => (
             <tr
-              key={r.codigo_municipio}
+              key={`${r.codigo_municipio}-${r.cultivo}-${r.periodo}`}
               onClick={() => onSelect?.({ codigo: r.codigo_municipio, cultivo: r.cultivo, periodo: r.periodo })}
             >
               <td>{start + i + 1}</td>
@@ -75,16 +69,16 @@ export default function Ranking({ onSelect }) {
         </tbody>
       </table>
       <div className="pagination">
-        <button disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Anterior</button>
+        <button disabled={page <= 1} onClick={() => setPage(page - 1)}>Anterior</button>
         {Array.from({ length: totalPages }, (_, i) => i + 1)
-          .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+          .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
           .map((p, idx, arr) => (
             <span key={p} style={{ display: "contents" }}>
               {idx > 0 && arr[idx - 1] !== p - 1 && <span className="page-info">…</span>}
-              <button className={p === currentPage ? "page-active" : ""} onClick={() => setPage(p)}>{p}</button>
+              <button className={p === page ? "page-active" : ""} onClick={() => setPage(p)}>{p}</button>
             </span>
           ))}
-        <button disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>Siguiente</button>
+        <button disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Siguiente</button>
       </div>
     </div>
   );
