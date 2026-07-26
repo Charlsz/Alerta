@@ -40,9 +40,7 @@ _DATASETS = {
         "output": "raw_gfw_subnational_2_drivers.json",
     },
 }
-_FILES = list(d["output"] for d in _DATASETS.values()) + [
-    "raw_gfw_subnational_2_primary_drivers.json",
-]
+_FILES = list(d["output"] for d in _DATASETS.values())
 
 _GFW_API_BASE = "https://data-api.globalforestwatch.org"
 
