@@ -35,6 +35,7 @@ function fmtTon(v) {
 }
 
 export default function MunicipioCard({ codigo, cultivo, periodo }) {
+  const hasSelection = !!(cultivo && periodo);
   const params = new URLSearchParams();
   if (cultivo) params.set("cultivo", cultivo);
   if (periodo) params.set("periodo", periodo);
@@ -47,8 +48,6 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
   const [deforData, setDeforData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const keyRef = useRef(null);
-
-  const key = `${codigo}-${cultivo}`;
 
   // Auto-load NDVI, deforestation, multi-agent on mount/change
   useEffect(() => {
@@ -75,6 +74,7 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
   if (!data?.data?.length) return <p className="empty-state">Sin datos para este municipio.</p>;
 
   const r = data.data[0];
+  const totalCultivos = new Set(data.data.map(d => d.cultivo)).size;
 
   const ask = async () => {
     const q = question.trim();
@@ -96,11 +96,22 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
     setAsking(false);
   };
 
+  const nthCultivos = totalCultivos > 1 ? `${totalCultivos} cultivos` : "1 cultivo";
+
   return (
     <div className="card">
       <div className="card-header">
         <h2 className="card-title">{r.nombre_municipio || r.codigo_municipio}</h2>
-        <p className="card-subtitle">{r.nombre_departamento} — {r.cultivo}</p>
+        <p className="card-subtitle">{r.nombre_departamento}</p>
+      </div>
+
+      {/* Context banner */}
+      <div className="context-banner">
+        {hasSelection ? (
+          <span>Mostrando datos de <strong>{r.cultivo}</strong></span>
+        ) : (
+          <span>Vista general — <strong>{nthCultivos}</strong> en este municipio</span>
+        )}
       </div>
 
       {/* IRA Score grande */}
@@ -210,14 +221,19 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
 
       {/* Reporte PDF */}
       <div style={{ marginTop: 12, textAlign: "right" }}>
-        <a href={`/reporte/${codigo}?cultivo=${encodeURIComponent(r.cultivo)}&periodo=${encodeURIComponent(r.periodo)}`} target="_blank" className="btn btn--ghost" style={{ fontSize: "0.8125rem" }}>
-          Reporte PDF completo →
+        <a href={`/reporte/${codigo}${hasSelection ? `?cultivo=${encodeURIComponent(r.cultivo)}&periodo=${encodeURIComponent(r.periodo)}` : ""}`} target="_blank" className="btn btn--ghost" style={{ fontSize: "0.8125rem" }}>
+          Reporte PDF {hasSelection ? `(${r.cultivo})` : "completo"} →
         </a>
       </div>
 
       {/* Chat IA */}
       <div className="card-section">
         <h4 className="section-label">Asistente IA</h4>
+        <p className="context-note">
+          {hasSelection
+            ? `El asistente analiza específicamente el cultivo ${r.cultivo}.`
+            : `El asistente tiene acceso a todos los ${nthCultivos} del municipio.`}
+        </p>
         <div className="chat-messages">
           {messages.map((m, i) => (
             <div key={i} className={`chat-message chat-message--${m.role}`}>

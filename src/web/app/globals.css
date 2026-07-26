@@ -375,6 +375,25 @@ a:hover { text-decoration: underline; }
   letter-spacing: 0.04em;
 }
 
+/* ======== Context Banner ======== */
+
+.context-banner {
+  background: #f0f4ff;
+  border: 1px solid #dbeafe;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.context-note {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+  font-style: italic;
+}
+
 /* ======== Section Label ======== */
 
 .section-label {
