@@ -1,4 +1,4 @@
-.PHONY: help install ingest features risk api web pipeline test lint
+.PHONY: help install ingest features risk api web pipeline lint
 
 # ── Ayuda ─────────────────────────────────────────────────────────────────────
 help:  ## Muestra esta ayuda
@@ -30,9 +30,6 @@ web:  ## Inicia el frontend Next.js en modo desarrollo
 	cd src/web && npm run dev
 
 # ── Calidad ───────────────────────────────────────────────────────────────────
-test:  ## Corre todos los tests con pytest
-	pytest tests/ -v --cov=src --cov-report=term-missing
-
 lint:  ## Verifica estilo de código con ruff
 	ruff check src/ scripts/ config.py
 

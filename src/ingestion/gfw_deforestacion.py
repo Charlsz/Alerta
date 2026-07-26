@@ -34,11 +34,6 @@ _DATASETS = {
         "sql": "SELECT * FROM umd_tree_cover_loss WHERE country='Colombia' AND threshold=30 AND primary_forest=true",
         "output": "raw_gfw_subnational_2_primary_loss.json",
     },
-    "drivers": {
-        "dataset": "tsc_tree_cover_loss_drivers",
-        "sql": "SELECT * FROM tsc_tree_cover_loss_drivers WHERE country='Colombia' AND threshold=30",
-        "output": "raw_gfw_subnational_2_drivers.json",
-    },
 }
 _FILES = list(d["output"] for d in _DATASETS.values())
 

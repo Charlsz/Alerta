@@ -262,7 +262,7 @@ docker compose up -d
 | GET | `/api/municipio/{codigo}/ndvi` | Serie temporal NDVI satelital (MODIS) |
 | GET | `/api/municipio/{codigo}/multiagent` | Análisis multi-agente del riesgo |
 | POST | `/api/municipio/{codigo}/chat` | Pregunta al asistente IA sobre el municipio |
-| GET | `/reporte/{codigo}` | Reporte ejecutivo imprimible/PDF (frontend) |
+| GET | `/reporte/{codigo}` | Reporte ejecutivo imprimible/PDF (ruta del frontend Next.js, no de la API) |
 
 ## Salidas del pipeline
 
