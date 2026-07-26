@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import useAPI from "../hooks/useAPI";
 
 const COLORS = { Bajo: "#22c55e", Medio: "#eab308", Alto: "#f97316", Crítico: "#ef4444" };
@@ -9,10 +9,11 @@ export default function Map({ onSelect }) {
   const ref = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
+  const [mapError, setMapError] = useState(null);
 
   useEffect(() => {
     if (!data?.features?.length) return;
-    import("leaflet/dist/leaflet.css");
+    import("leaflet/dist/leaflet.css").catch(() => {});
     import("leaflet").then((L) => {
       if (!mapRef.current) {
         mapRef.current = L.map(ref.current, { zoomControl: true }).setView([4.5, -74], 6);
@@ -37,9 +38,14 @@ export default function Map({ onSelect }) {
           layer.on("click", () => onSelect?.({ codigo: f.properties.codigo_municipio, cultivo: f.properties.cultivo, periodo: f.properties.periodo }));
         },
       }).addTo(mapRef.current);
+    }).catch((err) => {
+      console.error("Leaflet load error:", err);
+      setMapError("Error al cargar el mapa");
     });
     return () => { mapRef.current?.remove(); mapRef.current = null; layerRef.current = null; };
   }, [data, onSelect]);
+
+  if (mapError) return <div className="map-container" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}><p>{mapError}</p></div>;
 
   return <div ref={ref} className="map-container" />;
 }

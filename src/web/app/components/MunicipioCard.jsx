@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import useAPI from "../hooks/useAPI";
 import RiskBadge from "./RiskBadge";
 
@@ -17,6 +17,19 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
   const [loadingNdvi, setLoadingNdvi] = useState(false);
   const [deforData, setDeforData] = useState(null);
   const [loadingDefor, setLoadingDefor] = useState(false);
+  const keyRef = useRef(null);
+
+  // Reset data when (codigo, cultivo) changes
+  useEffect(() => {
+    const key = `${codigo}-${cultivo}`;
+    if (keyRef.current && keyRef.current !== key) {
+      setMultiAgent(null);
+      setNdviData(null);
+      setDeforData(null);
+      setMessages([]);
+    }
+    keyRef.current = key;
+  }, [codigo, cultivo]);
 
   const loadDefor = async () => {
     if (loadingDefor) return;

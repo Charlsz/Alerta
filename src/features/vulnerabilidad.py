@@ -30,8 +30,10 @@ def _build_insumos(con) -> pd.DataFrame:
     df = con.execute("SELECT * FROM clean_insumos").df()
     df.columns = [c.lower().strip() for c in df.columns]
 
-    fecha_col = next((c for c in df.columns if "periodo" in c or "fecha" in c or "mes" in c), None)
-    valor_col = next((c for c in df.columns if "nivel" in c or "indice" in c or "valor" in c), None)
+    KNOWN_DATE_NAMES = {"periodo", "fecha", "mes", "date", "fechaperiodo"}
+    KNOWN_VALUE_NAMES = {"nivel", "indice", "valor", "value", "insumos_nivel"}
+    fecha_col = next((c for c in df.columns if c.lower() in KNOWN_DATE_NAMES or c.lower().strip() in KNOWN_DATE_NAMES), None)
+    valor_col = next((c for c in df.columns if c.lower() in KNOWN_VALUE_NAMES or c.lower().strip() in KNOWN_VALUE_NAMES), None)
 
     if not fecha_col or not valor_col:
         logger.error("[vulnerabilidad] Columnas no encontradas. Cols: %s", list(df.columns))
