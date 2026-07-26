@@ -22,9 +22,7 @@ def build(force: bool = False) -> None:
     con = get_connection()
 
     if not force and table_exists(con, _TABLE):
-
-        logger.info("...", _TABLE)
-
+        logger.info("[store_risk] '%s' ya existe, omitiendo.", _TABLE)
         return
 
     logger.info("[store_risk] Uniendo resultados de riesgo...")

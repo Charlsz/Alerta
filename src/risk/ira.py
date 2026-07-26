@@ -60,9 +60,7 @@ def build(force: bool = False) -> None:
     con = get_connection()
 
     if not force and table_exists(con, _TABLE):
-
-        logger.info("...", _TABLE)
-
+        logger.info("[IRA] '%s' ya existe, omitiendo.", _TABLE)
         return
 
     logger.info("[IRA] Leyendo features_municipio_cultivo...")
