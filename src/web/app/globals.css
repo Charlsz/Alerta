@@ -443,6 +443,43 @@ a:hover { text-decoration: underline; }
   white-space: nowrap;
 }
 
+/* ======== Cultivo Tabs ======== */
+
+.cultivo-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.cultivo-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.cultivo-tab:hover {
+  border-color: var(--accent);
+}
+
+.cultivo-tab--active {
+  border-color: var(--accent);
+  background: #f0f4ff;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.cultivo-tab-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* ======== Top-3 Feature Importance ======== */
 
 .top3-grid {
