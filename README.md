@@ -90,23 +90,23 @@ Sobre el IRA base se aplican cuatro componentes de inteligencia artificial:
 
 ## Fuentes de datos implementadas
 
-| Categoría | Fuente | Dataset ID | Qué aporta | Estado |
+| Categoría | Fuente | ID | Qué aporta | URL |
 |---|---|---|---|---|
-| Clima | IDEAM — Precipitación | s54a-sgyg | Precipitación diaria (280M filas, filtro últimos 5 años) | ✅ Implementado |
-| Clima | IDEAM — Temperatura máxima | ccvq-rp9s | Temperatura máxima diaria (27M filas, últimos 5 años) | ✅ Implementado |
-| Clima | IDEAM — Humedad relativa | uext-mhny | Humedad del aire (87M filas, últimos 5 años) | ✅ Implementado |
-| Clima | IDEAM — Presión atmosférica | 62tk-nxj5 | Presión atmosférica (34M filas, últimos 5 años) | ✅ Implementado |
-| Clima | IDEAM — Temperatura ambiente | sbwg-7ju4 | Temperatura ambiente media y mínima (90M filas, últimos 5 años) | ✅ Implementado |
-| Clima | IDEAM — Viento | sgfv-3yp8 | Velocidad del viento (600K filas, últimos 2 años) | ✅ Implementado |
-| Satelital | MODIS (HDX) | ndvi-municipio | NDVI mensual por municipio (184K filas, 2022–2026) | ✅ Implementado |
-| Ambiental | GFW / Hansen | Subnational 2 | Pérdida de cobertura arbórea por municipio (26K filas, 2001–2025) | ✅ Implementado |
-| Producción | EVA | 2pnw-mmge | Área sembrada, cosechada, producción y rendimiento (200K filas) | ✅ Implementado |
-| Producción | EVA — Vista | fp29-z39g | Vista estadística auxiliar (170 filas) | ✅ Implementado |
-| Producción | EVA — Calendario | UPRA Excel | Calendario de siembras y cosechas por cultivo | ✅ Implementado |
-| Insumos | UPRA | gwbi-fnzs | Índice de precios de insumos agrícolas (88 filas) | ✅ Implementado |
-| Cartografía | IGAC / DANE | FeatureServer + GeoJSON | Geometrías municipales (1.122 municipios) | ✅ Implementado |
-| Cartografía | Catálogo estaciones IDEAM | hp9r-jxuu | Ubicación de estaciones meteorológicas (9.685 estaciones) | ✅ Implementado |
-| Socioeconómico | DANE — NBI | Excel DANE | Necesidades Básicas Insatisfechas por municipio (1.123 municipios) | ✅ Implementado |
+| Clima | IDEAM — Precipitación | `s54a-sgyg` | Precipitación diaria (últimos 5 años) | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Precipitaci-n/s54a-sgyg |
+| Clima | IDEAM — Temperatura máxima | `ccvq-rp9s` | Temperatura máxima diaria (últimos 5 años) | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Temperatura-M-xima-del-Aire/ccvq-rp9s |
+| Clima | IDEAM — Humedad relativa | `uext-mhny` | Humedad del aire (últimos 5 años) | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Humedad-del-Aire/uext-mhny |
+| Clima | IDEAM — Presión atmosférica | `62tk-nxj5` | Presión atmosférica (últimos 5 años) | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Presi-n-Atmosf-rica/62tk-nxj5 |
+| Clima | IDEAM — Temperatura ambiente | `sbwg-7ju4` | Temperatura ambiente media y mínima (últimos 5 años) | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Temperatura-Ambiente-del-Aire/sbwg-7ju4 |
+| Clima | IDEAM — Viento | `sgfv-3yp8` | Velocidad del viento (últimos 2 años) | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Velocidad-del-Viento/sgfv-3yp8 |
+| Satelital | MODIS — HDX | — | NDVI mensual por municipio (2022–2026) | https://data.humdata.org/dataset/col-ndvi-subnational |
+| Ambiental | GFW / Hansen | Subnational 2 | Pérdida de cobertura arbórea por municipio (2001–2025) | https://data.globalforestwatch.org |
+| Producción | EVA | `2pnw-mmge` | Área sembrada, cosechada, producción y rendimiento | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Evaluaciones-Agropecuarias-Municipales-EVA/2pnw-mmge |
+| Producción | EVA — Vista | `fp29-z39g` | Vista estadística auxiliar | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Vista-Evaluaciones-Agropecuarias-Municipales-EVA/fp29-z39g |
+| Producción | EVA — Calendario | UPRA Excel | Calendario de siembras y cosechas por cultivo | https://upra.gov.co/sites/default/files/2025-08/Consolidado%20calendarios%20EVA%202024.xlsx |
+| Insumos | UPRA | `gwbi-fnzs` | Índice de precios de insumos agrícolas | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/ndice-de-Precios-de-Insumos-Agr-colas/gwbi-fnzs |
+| Cartografía | IGAC / DANE | FeatureServer + GeoJSON | Geometrías municipales (1.122 municipios) | https://geoportal.igac.gov.co/contenido/datos-abiertos-cartografia-y-geografia |
+| Cartografía | Catálogo estaciones IDEAM | `hp9r-jxuu` | Ubicación de estaciones meteorológicas | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Cat-logo-Estaciones-IDEAM/hp9r-jxuu |
+| Socioeconómico | DANE — NBI | Excel DANE | Necesidades Básicas Insatisfechas por municipio | https://www.dane.gov.co/files/censo2018/informacion-tecnica/CNPV-2018-NBI.xlsx |
 
 ## Variables calculadas (26 features)
 
@@ -217,40 +217,19 @@ make docker-build && make docker-up
 
 ## Salidas del pipeline
 
-| Tabla / Archivo | Filas | Contenido |
-|---|---|---|---|
-| `features_municipio_cultivo` | 43.192 | 26 variables por municipio × cultivo × período |
-| `features_clima` | 2.328 | 15 variables climáticas (incl. viento) por municipio × mes |
-| `features_ndvi` | 60.210 | NDVI medio mensual + anomalía por municipio |
-| `features_deforestacion` | 1.014 | Pérdida de cobertura arbórea por municipio (2001–2025) |
-| `ira_resultados` | 43.192 | IRA score + nivel + anomalía + predicción de rendimiento |
-| `predicciones_rendimiento` | 33.291 | Rendimiento predicho XGBoost (t/ha) con IC 95% y SHAP top-3 |
-| `predicciones_nnet` | 33.291 | Rendimiento predicho Red Neuronal (t/ha) con IC 95% |
-| `data/models/iforest_*.joblib` | 183 | Modelos IsolationForest por cultivo |
-| `data/models/rendimiento_*.joblib` | 183 | Modelos de predicción de rendimiento por cultivo |
+| Tabla / Archivo | Contenido |
+|---|---|
+| `features_municipio_cultivo` | 26 variables por municipio × cultivo × período |
+| `features_clima` | 15 variables climáticas (incl. viento) por municipio × mes |
+| `features_ndvi` | NDVI medio mensual + anomalía por municipio |
+| `features_deforestacion` | Pérdida de cobertura arbórea por municipio (2001–2025) |
+| `ira_resultados` | IRA score + nivel + anomalía + predicción de rendimiento |
+| `predicciones_rendimiento` | Rendimiento predicho XGBoost (t/ha) con IC 95% y SHAP top-3 |
+| `predicciones_nnet` | Rendimiento predicho Red Neuronal (t/ha) con IC 95% |
+| `data/models/iforest_*.joblib` | Modelos IsolationForest por cultivo |
+| `data/models/rendimiento_*.joblib` | Modelos de predicción de rendimiento por cultivo |
 
-## Links / datos encontrados
 
-| Tipo | Dataset / Servicio | URL |
-|---|---|---|
-| Clima — Precipitación | IDEAM — datos.gov.co | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Precipitaci-n/s54a-sgyg |
-| Clima — Temperatura máxima | IDEAM — datos.gov.co | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Temperatura-M-xima-del-Aire/ccvq-rp9s |
-| Clima — Humedad | IDEAM — datos.gov.co | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Humedad-del-Aire/uext-mhny |
-| Clima — Presión atmosférica | IDEAM — datos.gov.co | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Presi-n-Atmosf-rica/62tk-nxj5 |
-| Clima — Temperatura ambiente | IDEAM — datos.gov.co | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Temperatura-Ambiente-del-Aire/sbwg-7ju4 |
-| Clima — Viento | IDEAM — datos.gov.co | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Velocidad-del-Viento/sgfv-3yp8 |
-| Producción — EVA | datos.gov.co | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Evaluaciones-Agropecuarias-Municipales-EVA/2pnw-mmge |
-| Producción — EVA Vista | datos.gov.co | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/Vista-Evaluaciones-Agropecuarias-Municipales-EVA/fp29-z39g |
-| Producción — EVA Calendario | UPRA | https://upra.gov.co/sites/default/files/2025-08/Consolidado%20calendarios%20EVA%202024.xlsx |
-| Insumos agrícolas | UPRA — datos.gov.co | https://www.datos.gov.co/Agricultura-y-Desarrollo-Rural/ndice-de-Precios-de-Insumos-Agr-colas/gwbi-fnzs |
-| Estaciones IDEAM | datos.gov.co | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Cat-logo-Estaciones-IDEAM/hp9r-jxuu |
-| Cartografía — IGAC | geoportal.igac.gov.co | https://geoportal.igac.gov.co/contenido/datos-abiertos-cartografia-y-geografia |
-| Ambiental — Deforestación | datos.gov.co | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Deforestaci-n-por-a-o/cqcx-tjpz |
-| Ambiental — Causas deforestación | datos.gov.co | https://www.datos.gov.co/Ambiente-y-Desarrollo-Sostenible/Causas-de-Deforestaci-n/em23-mwhw |
-
-## Roadmap
-
-Ver [ROADMAP.md](ROADMAP.md) para el detalle de próximas mejoras: calibración adaptativa de pesos del IRA, deep learning para series climáticas, y expansión a más cultivos.
 
 ## Notas
 
