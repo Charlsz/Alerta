@@ -98,13 +98,13 @@ def get_ranking(
         params.extend([q, q, q])
     clause = " AND ".join(where)
 
-    total = con.execute(f"SELECT COUNT(*) FROM ira_resultados r LEFT JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio WHERE {clause}", params).fetchone()[0]
+    total = con.execute(f"SELECT COUNT(*) FROM ira_resultados r LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m ON r.codigo_municipio = m.codigo_municipio WHERE {clause}", params).fetchone()[0]
     rows = con.execute(f"""
         SELECT r.codigo_municipio, r.cultivo, r.periodo, r.ira_score, r.ira_nivel,
                r.anomaly_score, r.rendimiento_predicho,
                m.nombre_municipio, m.nombre_departamento
         FROM ira_resultados r
-        LEFT JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio
+        LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m ON r.codigo_municipio = m.codigo_municipio
         WHERE {clause}
         ORDER BY r.ira_score DESC
         LIMIT ? OFFSET ?
@@ -171,7 +171,7 @@ def get_municipio(codigo: str, cultivo: str = None, periodo: str = None):
     rows = con.execute(f"""
         SELECT r.*, m.nombre_municipio, m.nombre_departamento
         FROM ira_resultados r
-        LEFT JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio
+        LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m ON r.codigo_municipio = m.codigo_municipio
         WHERE {clause}
         ORDER BY r.periodo DESC
     """, params).fetchall()
@@ -209,7 +209,7 @@ def chat_municipio(codigo: str, body: dict = None):
     rows = con.execute(f"""
         SELECT r.*, m.nombre_municipio, m.nombre_departamento
         FROM ira_resultados r
-        LEFT JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio
+        LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m ON r.codigo_municipio = m.codigo_municipio
         WHERE {clause}
         ORDER BY r.periodo DESC
         LIMIT 30
@@ -288,7 +288,7 @@ def multiagent_municipio(codigo: str, cultivo: str = None, periodo: str = None):
     rows = con.execute(f"""
         SELECT r.*, m.nombre_municipio, m.nombre_departamento
         FROM ira_resultados r
-        LEFT JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio
+        LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m ON r.codigo_municipio = m.codigo_municipio
         WHERE {clause}
         ORDER BY r.periodo DESC
         LIMIT 30
