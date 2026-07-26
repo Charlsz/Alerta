@@ -84,7 +84,7 @@ def get_ranking(
         con.close()
         return {"data": [], "total": 0}
 
-    where = ["1=1"]
+    where = ["r._rn = 1"]
     params = []
     if cultivo:
         where.append("r.cultivo = ?")
@@ -98,14 +98,20 @@ def get_ranking(
         params.extend([q, q, q])
     clause = " AND ".join(where)
 
-    total = con.execute(f"SELECT COUNT(*) FROM ira_resultados r LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m ON r.codigo_municipio = m.codigo_municipio WHERE {clause}", params).fetchone()[0]
+    _BASE = """FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY codigo_municipio, cultivo ORDER BY periodo DESC) as _rn
+        FROM ira_resultados
+    ) r
+    LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m
+        ON r.codigo_municipio = m.codigo_municipio
+    WHERE {clause}"""
+
+    total = con.execute(f"SELECT COUNT(*) {_BASE}", params).fetchone()[0]
     rows = con.execute(f"""
         SELECT r.codigo_municipio, r.cultivo, r.periodo, r.ira_score, r.ira_nivel,
                r.anomaly_score, r.rendimiento_predicho,
                m.nombre_municipio, m.nombre_departamento
-        FROM ira_resultados r
-        LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m ON r.codigo_municipio = m.codigo_municipio
-        WHERE {clause}
+        {_BASE}
         ORDER BY r.ira_score DESC
         LIMIT ? OFFSET ?
     """, params + [limit, offset]).fetchall()
