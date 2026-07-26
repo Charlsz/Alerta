@@ -77,7 +77,7 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
       const res = await fetch(`/api/municipio/${codigo}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q }),
+        body: JSON.stringify({ question: q, cultivo, periodo }),
       });
       const json = await res.json();
       setMessages((prev) => [...prev, { role: "assistant", text: json.answer || "Error al obtener respuesta." }]);
@@ -107,7 +107,7 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
       </table>
 
       <div style={{ marginTop: 8, textAlign: "right" }}>
-        <a href={`/reporte/${codigo}`} target="_blank" style={{ fontSize: "0.8125rem" }}>
+        <a href={`/reporte/${codigo}?cultivo=${encodeURIComponent(r.cultivo)}&periodo=${encodeURIComponent(r.periodo)}`} target="_blank" style={{ fontSize: "0.8125rem" }}>
           Reporte PDF completo →
         </a>
       </div>

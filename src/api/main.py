@@ -186,16 +186,28 @@ def chat_municipio(codigo: str, body: dict = None):
     if not api_key:
         return JSONResponse({"answer": "El asistente no está configurado (falta OPENROUTER_API_KEY)."}, status_code=503)
 
-    # fetch municipio data
+    cultivo = body.get("cultivo")
+    periodo = body.get("periodo")
+
+    # fetch municipio data — filtered by cultivo/periodo if provided
     con = _con()
+    where = ["r.codigo_municipio = ?"]
+    params = [codigo]
+    if cultivo:
+        where.append("r.cultivo = ?")
+        params.append(cultivo)
+    if periodo:
+        where.append("r.periodo = ?")
+        params.append(periodo)
+    clause = " AND ".join(where)
     rows = con.execute(f"""
         SELECT r.*, m.nombre_municipio, m.nombre_departamento
         FROM ira_resultados r
         LEFT JOIN estaciones_municipio m ON r.codigo_municipio = m.codigo_municipio
-        WHERE r.codigo_municipio = ?
+        WHERE {clause}
         ORDER BY r.periodo DESC
         LIMIT 30
-    """, [codigo]).fetchall()
+    """, params).fetchall()
     con.close()
 
     if not rows:

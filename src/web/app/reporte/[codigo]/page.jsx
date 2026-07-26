@@ -2,8 +2,11 @@
 import { use, useEffect, useState } from "react";
 import RiskBadge from "@/app/components/RiskBadge";
 
-export default function ReportePage({ params }) {
+export default function ReportePage({ params, searchParams }) {
   const { codigo } = use(params);
+  const sp = use(searchParams);
+  const cultivoParam = sp?.cultivo || null;
+  const periodoParam = sp?.periodo || null;
   const [data, setData] = useState(null);
   const [reporte, setReporte] = useState("");
   const [defor, setDefor] = useState(null);
@@ -13,9 +16,14 @@ export default function ReportePage({ params }) {
 
   useEffect(() => {
     if (!codigo) return;
+    const sp_ = new URLSearchParams();
+    if (cultivoParam) sp_.set("cultivo", cultivoParam);
+    if (periodoParam) sp_.set("periodo", periodoParam);
+    const qs = sp_.toString();
+    const detailUrl = `/api/municipio/${codigo}${qs ? "?" + qs : ""}`;
     // fetch data + LLM report in parallel
     Promise.all([
-      fetch(`/api/municipio/${codigo}`).then((r) => r.json()),
+      fetch(detailUrl).then((r) => r.json()),
       fetch(`/api/municipio/${codigo}/deforestacion`).then((r) => r.json()),
       fetch(`/api/municipio/${codigo}/ndvi`).then((r) => r.json()),
       fetch(`/api/municipio/${codigo}/multiagent`).then((r) => r.json()),
@@ -23,6 +31,8 @@ export default function ReportePage({ params }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          cultivo: cultivoParam,
+          periodo: periodoParam,
           question: "Responde directo, sin explicar tu razonamiento. Analiza el riesgo agrícola de este municipio en lenguaje simple para un agricultor. Sin guiones, asteriscos, viñetas ni caracteres especiales. Solo 1 o 2 párrafos de texto plano. Incluye: nivel de riesgo actual, componentes mas preocupantes (SPC, SEP o SVE), rendimiento esperado del cultivo, y 1 o 2 recomendaciones practicas. Maximo 150 palabras. REGLA IMPORTANTE: No expliques tu razonamiento ni muestres tu proceso de análisis. Responde ÚNICAMENTE el texto final del análisis, sin prefacios, sin introducciones como 'El usuario quiere...', sin 'Basado en los datos...'. Empieza directamente con la respuesta.",
         }),
       }).then((r) => r.json()),
@@ -33,7 +43,7 @@ export default function ReportePage({ params }) {
       setMultiAgent(m?.agentes ? m : null);
       setReporte(r.answer || "");
     }).finally(() => setLoading(false));
-  }, [codigo]);
+  }, [codigo, cultivoParam, periodoParam]);
 
   if (loading) return <div className="empty-state" style={{ textAlign: "center", padding: 40 }}>Generando reporte...</div>;
   if (!data?.data?.length) return <div className="empty-state" style={{ padding: 40 }}>Sin datos para este municipio.</div>;
