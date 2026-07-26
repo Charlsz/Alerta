@@ -93,10 +93,20 @@ def _load_json_data(name: str, value_key: str, start_year: int = 2001) -> pd.Dat
     with open(path, encoding="utf-8") as f:
         records = json.load(f)
     rows = []
+    # detect max year from data columns
+    all_years = set()
+    for rec in records:
+        for k in rec:
+            if k.startswith("tc_loss_ha_"):
+                try:
+                    all_years.add(int(k.split("_")[-1]))
+                except ValueError:
+                    pass
+    max_year = max(all_years) if all_years else 2026
     for rec in records:
         if rec.get("threshold") != 30:
             continue
-        for year in range(start_year, 2026):
+        for year in range(start_year, max_year + 1):
             col = f"tc_loss_ha_{year}"
             val = rec.get(col)
             if val is not None and float(val) > 0:
@@ -178,7 +188,7 @@ def build(force: bool = False) -> None:
         sub10 = g[g["year"] >= cutoff_10y]
         sub_latest = g[g["year"] == latest_year]
         return pd.Series({
-            "deforestacion_2025": sub_latest["tc_loss_ha"].sum(),
+            f"deforestacion_{latest_year}": sub_latest["tc_loss_ha"].sum(),
             "deforestacion_total_5y": sub5["tc_loss_ha"].sum(),
             "deforestacion_total_10y": sub10["tc_loss_ha"].sum(),
             "primary_loss_5y": sub5["primary_loss_ha"].sum(),

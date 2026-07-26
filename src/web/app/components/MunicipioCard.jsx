@@ -149,7 +149,7 @@ export default function MunicipioCard({ codigo, cultivo }) {
         {loadingDefor && <p className="empty-state" style={{ padding: 0 }}>Cargando...</p>}
         {deforData?.data && (
           <div style={{ fontSize: "0.8125rem" }}>
-            <p>Pérdida bosque 2025: <strong>{deforData.data.deforestacion_2025?.toFixed(0)} hectáreas</strong></p>
+            <p>Pérdida bosque (último año): <strong>{Object.entries(deforData.data).find(([k]) => k.startsWith("deforestacion_") && k !== "deforestacion_total_5y" && k !== "deforestacion_total_10y")?.[1]?.toFixed(0) || "—"} hectáreas</strong></p>
             <p>Total últimos 5 años: <strong>{deforData.data.deforestacion_total_5y?.toFixed(0)} hectáreas</strong></p>
             <p>Total últimos 10 años: <strong>{deforData.data.deforestacion_total_10y?.toFixed(0)} hectáreas</strong></p>
             <p>Tendencia: <strong>{deforData.data.deforestacion_tendencia_label}</strong></p>

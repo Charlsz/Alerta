@@ -301,8 +301,12 @@ def get_municipio_deforestacion(codigo: str):
         con.close()
         return {"error": "no deforestation data"}
 
-    rows = con.execute("""
-        SELECT *
+    columns = [r[0] for r in con.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='features_deforestacion' ORDER BY ordinal_position"
+    ).fetchall()]
+
+    rows = con.execute(f"""
+        SELECT {', '.join(columns)}
         FROM features_deforestacion
         WHERE codigo_municipio = ?
     """, [codigo]).fetchall()
@@ -311,7 +315,4 @@ def get_municipio_deforestacion(codigo: str):
     if not rows:
         return {"error": "no data for this municipio"}
 
-    columns = ["codigo_municipio","deforestacion_2025","deforestacion_total_5y","deforestacion_total_10y",
-               "primary_loss_5y","deforestacion_ha_promedio","n_anos_datos",
-               "deforestacion_tendencia","deforestacion_tendencia_label"]
     return {"data": dict(zip(columns, rows[0]))}

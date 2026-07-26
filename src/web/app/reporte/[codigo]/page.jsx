@@ -99,8 +99,8 @@ export default function ReportePage({ params }) {
       {defor && (
         <div className="report-grid">
           <div className="report-card">
-            <h3>Pérdida de Bosque 2025</h3>
-            <div className="value">{defor.deforestacion_2025?.toFixed(0)} hectáreas</div>
+            <h3>Pérdida de Bosque (último año)</h3>
+            <div className="value">{Object.entries(defor).find(([k]) => k.startsWith("deforestacion_") && !k.includes("total") && !k.includes("promedio") && !k.includes("tendencia"))?.[1]?.toFixed(0) || "—"} hectáreas</div>
             <div className="sub">Deforestación en el año más reciente</div>
           </div>
           <div className="report-card">
