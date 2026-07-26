@@ -18,7 +18,7 @@ RUN cd src/web && npm run build && \
 
 COPY . .
 
-EXPOSE 7860
+EXPOSE 8000 3000
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 CMD ["/entrypoint.sh"]
