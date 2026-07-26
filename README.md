@@ -203,7 +203,7 @@ make docker-build && make docker-up
 ## Endpoints de la API
 
 | Método | Ruta | Descripción |
-|---|---|---|---|---|
+|---|---|---|
 | GET | `/api/status` | Estado del pipeline y última actualización de datos |
 | GET | `/api/filters` | Cultivos y departamentos disponibles |
 | GET | `/api/ranking` | Ranking paginado municipio–cultivo por IRA |

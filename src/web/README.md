@@ -11,7 +11,7 @@ Aplicación React con Next.js App Router para visualizar resultados de riesgo cl
 | `app/layout.jsx` | Root layout con metadata global |
 | `app/page.jsx` | Página principal: FilterBar + Map + Ranking |
 | `app/globals.css` | Estilos base |
-| `app/components/FilterBar.jsx` | Filtros (cultivo, departamento) |
+| `app/components/FilterBar.jsx` | Filtros (cultivo, departamento) — sin uso actual, pendiente de integrar |
 | `app/components/Map.jsx` | Mapa de riesgo municipal (Leaflet) |
 | `app/components/Ranking.jsx` | Tabla de ranking municipio–cultivo |
 | `app/components/MunicipioCard.jsx` | Ficha detallada por municipio + chat asistente IA |

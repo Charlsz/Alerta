@@ -1,7 +1,7 @@
 # src/ingestion/
 
 Descarga los datos crudos de cada fuente externa y los guarda en `data/raw/`.
-Cada script es independiente, idempotente y expone `run(force=False)` para el orquestador (`scripts/run_ingestion.py`).
+Cada script es independiente, idempotente y expone `run(force=False)` para el orquestador (`scripts/run.py`).
 
 ---
 
@@ -149,6 +149,26 @@ Cada script es independiente, idempotente y expone `run(force=False)` para el or
 
 ---
 
+### `dane_nbi.py` — NBI por municipio (DANE excel directo)
+
+**Qué hace:** Descarga el archivo Excel de Necesidades Básicas Insatisfechas desde el portal oficial del DANE. Guarda en `data/raw/dane_nbi.parquet`. Complementa a `dane_municipios.py` con datos más actualizados.
+
+**Cómo lo hace:** Descarga el XLSX con `requests.get()` desde la URL directa del DANE, lo lee con `pd.read_excel()`, extrae la hoja de total nacional por municipio y normaliza códigos DANE a 5 dígitos.
+
+**Por qué así:** El dataset SODA (`fjhr-4qb9`) fue retirado; el Excel oficial del DANE es la fuente primaria y más confiable.
+
+---
+
+### `gfw_deforestacion.py` — Pérdida de cobertura arbórea GFW/Hansen
+
+**Qué hace:** Descarga datos de deforestación (pérdida de cobertura arbórea, bosque primario y drivers) por municipio (subnational 2) para Colombia desde la GFW Data API v2. Guarda 3 archivos JSON en `data/raw/`.
+
+**Cómo lo hace:** Consulta la API REST de GFW (`data-api.globalforestwatch.org`) con SQL tipo GeoDB. Requiere `GFW_API_KEY` en `.env`. Como alternativa local, los archivos JSON pueden colocarse manualmente en `data/raw/`.
+
+**Por qué así:** GFW es la fuente global estándar para monitoreo de bosques. La API v2 requiere autenticación pero ofrece datos a nivel subnational 2 que no están disponibles en descarga pública directa.
+
+---
+
 ### `load_duckdb.py` — Carga a DuckDB
 
 **Qué hace:** Lee todos los archivos Parquet de `data/raw/` y los carga como tablas en `data/alerta.duckdb` con el prefijo `raw_`. Ejemplo: `ideam_precip.parquet` → `raw_precipitacion`.
@@ -165,7 +185,7 @@ El orquestador (`scripts/run.py ingest`) corre los módulos en este orden:
 
 ```
 estaciones  →  municipios  →  eva  →  eva_calendario  →  insumos  →  dane  →  dane_nbi  →
-precipitacion  →  temperatura  →  humedad  →  presion  →  tambiente  →  viento  →  ndvi
+precipitacion  →  temperatura  →  humedad  →  presion  →  tambiente  →  viento  →  ndvi  →  deforestacion
 ```
 
 Dependencias lógicas:
