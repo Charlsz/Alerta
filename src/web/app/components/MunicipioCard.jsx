@@ -161,7 +161,23 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
       {/* Selection info */}
       {r && (
         <div className="context-banner">
-          <span>Mostrando <strong>{r.cultivo}</strong> — último período ({String(r.periodo).slice(0, 7)})</span>
+          <span>Mostrando <strong>{r.cultivo}</strong></span>
+        </div>
+      )}
+
+      {/* Period selector */}
+      {periodOptions.length > 1 && (
+        <div className="period-chips">
+          {periodOptions.map(p => (
+            <button
+              key={String(p.periodo)}
+              className={`period-chip ${p.periodo === selectedPeriodo ? "period-chip--active" : ""}`}
+              onClick={() => setFocusPeriodo(p.periodo)}
+            >
+              {String(p.periodo).slice(0, 7)}
+              <span className="period-chip-ira">{p.ira_score?.toFixed(3)}</span>
+            </button>
+          ))}
         </div>
       )}
 
