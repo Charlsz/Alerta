@@ -68,11 +68,51 @@ def _build_precip(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             FROM obs
             GROUP BY codigo_municipio, CAST(fechaobservacion AS DATE)
         ),
+        rolling AS (
+            SELECT
+                codigo_municipio,
+                fecha,
+                precip_dia,
+                SUM(precip_dia) OVER (
+                    PARTITION BY codigo_municipio
+                    ORDER BY fecha
+                    ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+                ) AS precip_7d
+            FROM daily
+        ),
         p95 AS (
             SELECT codigo_municipio,
                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY precip_dia) AS umbral
             FROM daily
             GROUP BY codigo_municipio
+        ),
+        streak_groups AS (
+            SELECT
+                codigo_municipio,
+                fecha,
+                precip_dia,
+                SUM(CASE WHEN precip_dia >= 1 THEN 1 ELSE 0 END) OVER (
+                    PARTITION BY codigo_municipio ORDER BY fecha
+                    ROWS UNBOUNDED PRECEDING
+                ) AS grp
+            FROM daily
+        ),
+        streak_lengths AS (
+            SELECT
+                codigo_municipio,
+                DATE_TRUNC('month', fecha) AS periodo,
+                COUNT(*) AS streak_len
+            FROM streak_groups
+            WHERE precip_dia < 1
+            GROUP BY codigo_municipio, DATE_TRUNC('month', fecha), grp
+        ),
+        max_streaks AS (
+            SELECT
+                codigo_municipio,
+                periodo,
+                MAX(streak_len) AS dias_secos_consecutivos
+            FROM streak_lengths
+            GROUP BY codigo_municipio, periodo
         ),
         monthly AS (
             SELECT
@@ -80,11 +120,13 @@ def _build_precip(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
                 DATE_TRUNC('month', d.fecha)            AS periodo,
                 EXTRACT(MONTH FROM d.fecha)              AS mes,
                 SUM(d.precip_dia)                       AS precip_acum_30d,
-                SUM(d.precip_dia) / 4.33                AS precip_acum_7d,
-                COUNT(*) FILTER (WHERE d.precip_dia < 1) AS dias_secos_consecutivos,
+                AVG(r.precip_7d)                        AS precip_acum_7d,
+                MAX(s.dias_secos_consecutivos)           AS dias_secos_consecutivos,
                 COUNT(*) FILTER (WHERE d.precip_dia > p.umbral) AS dias_lluvia_extrema
             FROM daily d
+            JOIN rolling r ON d.codigo_municipio = r.codigo_municipio AND d.fecha = r.fecha
             LEFT JOIN p95 p ON d.codigo_municipio = p.codigo_municipio
+            LEFT JOIN max_streaks s ON d.codigo_municipio = s.codigo_municipio AND DATE_TRUNC('month', d.fecha) = s.periodo
             GROUP BY d.codigo_municipio, periodo, mes
         ),
         hist AS (
@@ -121,15 +163,28 @@ def _build_tmax(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             SELECT
                 codigo_municipio,
                 DATE_TRUNC('month', CAST(fechaobservacion AS DATE)) AS periodo,
-                AVG(CAST(valorobservado AS DOUBLE))                                  AS tmax_media_7d,
-                AVG(CAST(valorobservado AS DOUBLE)) -
-                    AVG(AVG(CAST(valorobservado AS DOUBLE)))
-                        OVER (PARTITION BY codigo_municipio)         AS tmax_anomalia_30d,
+                EXTRACT(MONTH FROM CAST(fechaobservacion AS DATE))   AS mes,
+                AVG(CAST(valorobservado AS DOUBLE))                  AS tmax_media_7d,
                 COUNT(*) FILTER (WHERE CAST(valorobservado AS DOUBLE) > 33.0) AS dias_tmax_critica
             FROM obs
-            GROUP BY codigo_municipio, periodo
+            GROUP BY codigo_municipio, periodo, mes
+        ),
+        hist AS (
+            SELECT
+                codigo_municipio,
+                mes,
+                AVG(tmax_media_7d) AS hist_avg
+            FROM monthly
+            GROUP BY codigo_municipio, mes
         )
-        SELECT * FROM monthly
+        SELECT
+            m.codigo_municipio,
+            m.periodo,
+            m.tmax_media_7d,
+            m.tmax_media_7d - h.hist_avg AS tmax_anomalia_30d,
+            m.dias_tmax_critica
+        FROM monthly m
+        LEFT JOIN hist h ON m.codigo_municipio = h.codigo_municipio AND m.mes = h.mes
     """
     return con.execute(sql).df()
 
@@ -150,17 +205,26 @@ def _build_humedad(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             SELECT
                 codigo_municipio,
                 DATE_TRUNC('month', CAST(fechaobservacion AS DATE)) AS periodo,
-                AVG(CAST(valorobservado AS DOUBLE))                                  AS humedad_media_30d
+                EXTRACT(MONTH FROM CAST(fechaobservacion AS DATE))   AS mes,
+                AVG(CAST(valorobservado AS DOUBLE))                  AS humedad_media_30d
             FROM obs
-            GROUP BY codigo_municipio, periodo
+            GROUP BY codigo_municipio, periodo, mes
+        ),
+        hist AS (
+            SELECT
+                codigo_municipio,
+                mes,
+                AVG(humedad_media_30d) AS hist_avg
+            FROM monthly
+            GROUP BY codigo_municipio, mes
         )
         SELECT
-            codigo_municipio,
-            periodo,
-            humedad_media_30d,
-            humedad_media_30d -
-                AVG(humedad_media_30d) OVER (PARTITION BY codigo_municipio) AS humedad_anomalia_30d
-        FROM monthly
+            m.codigo_municipio,
+            m.periodo,
+            m.humedad_media_30d,
+            m.humedad_media_30d - h.hist_avg AS humedad_anomalia_30d
+        FROM monthly m
+        LEFT JOIN hist h ON m.codigo_municipio = h.codigo_municipio AND m.mes = h.mes
     """
     return con.execute(sql).df()
 
@@ -181,17 +245,26 @@ def _build_presion(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
             SELECT
                 codigo_municipio,
                 DATE_TRUNC('month', CAST(fechaobservacion AS DATE)) AS periodo,
-                AVG(CAST(valorobservado AS DOUBLE))                                  AS presion_media_30d
+                EXTRACT(MONTH FROM CAST(fechaobservacion AS DATE))   AS mes,
+                AVG(CAST(valorobservado AS DOUBLE))                  AS presion_media_30d
             FROM obs
-            GROUP BY codigo_municipio, periodo
+            GROUP BY codigo_municipio, periodo, mes
+        ),
+        hist AS (
+            SELECT
+                codigo_municipio,
+                mes,
+                AVG(presion_media_30d) AS hist_avg
+            FROM monthly
+            GROUP BY codigo_municipio, mes
         )
         SELECT
-            codigo_municipio,
-            periodo,
-            presion_media_30d,
-            presion_media_30d -
-                AVG(presion_media_30d) OVER (PARTITION BY codigo_municipio) AS presion_anomalia_30d
-        FROM monthly
+            m.codigo_municipio,
+            m.periodo,
+            m.presion_media_30d,
+            m.presion_media_30d - h.hist_avg AS presion_anomalia_30d
+        FROM monthly m
+        LEFT JOIN hist h ON m.codigo_municipio = h.codigo_municipio AND m.mes = h.mes
     """
     return con.execute(sql).df()
 
