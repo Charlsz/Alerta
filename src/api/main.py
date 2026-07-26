@@ -97,8 +97,7 @@ def get_ranking(
         q = f"%{search}%"
         params.extend([q, q, q])
     clause = " AND ".join(where)
-
-    _BASE = """FROM (
+    wheresql = f"""FROM (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY codigo_municipio, cultivo ORDER BY periodo DESC) as _rn
         FROM ira_resultados
     ) r
@@ -106,12 +105,12 @@ def get_ranking(
         ON r.codigo_municipio = m.codigo_municipio
     WHERE {clause}"""
 
-    total = con.execute(f"SELECT COUNT(*) {_BASE}", params).fetchone()[0]
+    total = con.execute(f"SELECT COUNT(*) {wheresql}", params).fetchone()[0]
     rows = con.execute(f"""
         SELECT r.codigo_municipio, r.cultivo, r.periodo, r.ira_score, r.ira_nivel,
                r.anomaly_score, r.rendimiento_predicho,
                m.nombre_municipio, m.nombre_departamento
-        {_BASE}
+        {wheresql}
         ORDER BY r.ira_score DESC
         LIMIT ? OFFSET ?
     """, params + [limit, offset]).fetchall()

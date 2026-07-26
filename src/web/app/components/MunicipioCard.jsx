@@ -3,6 +3,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import useAPI from "../hooks/useAPI";
 import RiskBadge from "./RiskBadge";
 
+const GENERAL = "__general__";
+
 function Bar({ value, label, color }) {
   const pct = Math.round((value ?? 0) * 100);
   return (
@@ -34,17 +36,23 @@ function fmtTon(v) {
   return Number(v).toLocaleString("es-CO", { maximumFractionDigits: 1 }) + " t/ha";
 }
 
+/** From a list of periods, return the id of the one that should be shown by default. */
+function pickDefaultPeriodId(periods, preferId) {
+  if (preferId) return preferId;
+  if (!periods.length) return null;
+  const withData = periods.filter(p => p.rendimiento_predicho != null);
+  const pool = withData.length > 0 ? withData : periods;
+  return pool.reduce((a, b) => (a.periodo > b.periodo ? a : b)).periodo;
+}
+
 export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: propPeriodo }) {
-  // Always fetch all data for the municipio
   const { data, loading } = useAPI(codigo ? `/api/municipio/${codigo}` : null);
 
   // Internal selection state
   const [focusCultivo, setFocusCultivo] = useState(null);
   const [focusPeriodo, setFocusPeriodo] = useState(null);
 
-  // Effective selection: prop > internal > first available
-  const effectiveCultivo = focusCultivo || propCultivo;
-  const effectivePeriodo = focusPeriodo || propPeriodo;
+  const isGeneral = focusCultivo === GENERAL;
 
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState("");
@@ -55,7 +63,7 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
   const [loaded, setLoaded] = useState(false);
   const keyRef = useRef(null);
 
-  // Compute: latest row per cultivo, sorted by IRA desc
+  // Latest row per cultivo, sorted by IRA desc
   const cultivoOptions = useMemo(() => {
     if (!data?.data) return [];
     const latest = {};
@@ -68,24 +76,56 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
     return Object.values(latest).sort((a, b) => (b.ira_score || 0) - (a.ira_score || 0));
   }, [data]);
 
-  // Current selected cultivo (resolved name), fallback to first available
-  const selectedCultivo = effectiveCultivo || cultivoOptions[0]?.cultivo || null;
-  const selectedPeriodo = effectivePeriodo || cultivoOptions.find(c => c.cultivo === selectedCultivo)?.periodo || null;
+  // Current selection
+  const selectedCultivo = (() => {
+    if (isGeneral) return GENERAL;
+    if (focusCultivo) return focusCultivo;
+    if (propCultivo) return propCultivo;
+    return cultivoOptions[0]?.cultivo || null;
+  })();
 
-  // All periods for the selected cultivo, sorted descending
+  // All periods for the selected cultivo
   const periodOptions = useMemo(() => {
-    if (!data?.data || !selectedCultivo) return [];
+    if (!data?.data || !selectedCultivo || selectedCultivo === GENERAL) return [];
     return data.data
       .filter(d => d.cultivo === selectedCultivo)
       .sort((a, b) => (a.periodo < b.periodo ? 1 : -1));
   }, [data, selectedCultivo]);
 
-  // Display row (latest period of selected cultivo, or a specific one)
-  const displayRow = selectedPeriodo
-    ? periodOptions.find(d => d.periodo === selectedPeriodo) || periodOptions[0]
-    : periodOptions[0];
+  // Display row — prefer non-null rendimiento_predicho
+  const displayRow = useMemo(() => {
+    if (!periodOptions.length) return null;
+    const prefer = focusPeriodo || propPeriodo;
+    const id = pickDefaultPeriodId(periodOptions, prefer);
+    return periodOptions.find(d => d.periodo === id) || periodOptions[0];
+  }, [periodOptions, focusPeriodo, propPeriodo]);
 
-  // Auto-load NDVI, deforestation, multi-agent on mount/change
+  // General summary
+  const generalSummary = useMemo(() => {
+    if (!data?.data) return null;
+    const latest = {};
+    for (const d of data.data) {
+      const key = d.cultivo;
+      if (!latest[key] || d.periodo > latest[key].periodo) latest[key] = d;
+    }
+    const list = Object.values(latest);
+    const scores = list.map(d => d.ira_score).filter(v => v != null);
+    const niveles = {};
+    for (const d of list) {
+      const n = d.ira_nivel || "Sin dato";
+      niveles[n] = (niveles[n] || 0) + 1;
+    }
+    const sorted = [...list].sort((a, b) => (b.ira_score || 0) - (a.ira_score || 0));
+    return {
+      totalCultivos: list.length,
+      avgIRA: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
+      niveles,
+      top3: sorted.slice(0, 3),
+      bottom3: sorted.slice(-3).reverse(),
+    };
+  }, [data]);
+
+  // Fetch supporting data (NDVI, deforestation, multi-agent)
   useEffect(() => {
     if (!codigo) return;
     const k = `${codigo}-${selectedCultivo || ""}`;
@@ -93,17 +133,18 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
       setMultiAgent(null); setNdviData(null); setDeforData(null); setMessages([]); setLoaded(false);
     }
     keyRef.current = k;
+    const cultivoParam = selectedCultivo === GENERAL ? "" : selectedCultivo || "";
     Promise.all([
       fetch(`/api/municipio/${codigo}/deforestacion`).then(r => r.json()).catch(() => null),
       fetch(`/api/municipio/${codigo}/ndvi`).then(r => r.json()).catch(() => null),
-      fetch(`/api/municipio/${codigo}/multiagent?cultivo=${encodeURIComponent(selectedCultivo || "")}&periodo=${encodeURIComponent(selectedPeriodo || "")}`).then(r => r.json()).catch(() => null),
+      fetch(`/api/municipio/${codigo}/multiagent?cultivo=${encodeURIComponent(cultivoParam)}`).then(r => r.json()).catch(() => null),
     ]).then(([d, n, m]) => {
       setDeforData(d);
       setNdviData(n);
       setMultiAgent(m);
       setLoaded(true);
     });
-  }, [codigo, selectedCultivo, selectedPeriodo]);
+  }, [codigo, selectedCultivo]);
 
   const ask = async () => {
     const q = question.trim();
@@ -112,10 +153,12 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
     setQuestion("");
     setAsking(true);
     try {
+      const body = { question: q };
+      if (!isGeneral) { body.cultivo = selectedCultivo; body.periodo = displayRow?.periodo; }
       const res = await fetch(`/api/municipio/${codigo}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, cultivo: selectedCultivo, periodo: selectedPeriodo }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       setMessages((prev) => [...prev, { role: "assistant", text: json.answer || "Error al obtener respuesta." }]);
@@ -125,15 +168,13 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
     setAsking(false);
   };
 
-  // ── Empty / Loading states ───────────────────────────────────────────────
+  // ── Empty / Loading states ──
   if (!codigo) return <p className="empty-state">Selecciona un municipio en el mapa o ranking.</p>;
   if (loading) return <p className="empty-state">Cargando...</p>;
   if (!data?.data?.length) return <p className="empty-state">Sin datos para este municipio.</p>;
   if (!cultivoOptions.length) return <p className="empty-state">Sin datos de cultivos para este municipio.</p>;
 
-  // Resolve nombre/departamento from any row
   const firstRow = data.data[0];
-  const r = displayRow;
 
   return (
     <div className="card">
@@ -143,99 +184,168 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
       </div>
 
       {/* Cultivo tabs */}
-      {cultivoOptions.length > 1 && (
-        <div className="cultivo-tabs">
-          {cultivoOptions.map(c => (
-            <button
-              key={c.cultivo}
-              className={`cultivo-tab ${c.cultivo === selectedCultivo ? "cultivo-tab--active" : ""}`}
-              onClick={() => { setFocusCultivo(c.cultivo); setFocusPeriodo(c.periodo); setMessages([]); }}
-            >
-              <span className="cultivo-tab-name">{c.cultivo}</span>
-              <RiskBadge nivel={c.ira_nivel} />
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="cultivo-tabs">
+        <button
+          className={`cultivo-tab ${isGeneral ? "cultivo-tab--active" : ""}`}
+          onClick={() => { setFocusCultivo(GENERAL); setFocusPeriodo(null); setMessages([]); }}
+        >
+          General
+        </button>
+        {cultivoOptions.map(c => (
+          <button
+            key={c.cultivo}
+            className={`cultivo-tab ${c.cultivo === selectedCultivo && !isGeneral ? "cultivo-tab--active" : ""}`}
+            onClick={() => { setFocusCultivo(c.cultivo); setFocusPeriodo(c.periodo); setMessages([]); }}
+          >
+            <span className="cultivo-tab-name">{c.cultivo}</span>
+            <RiskBadge nivel={c.ira_nivel} />
+          </button>
+        ))}
+      </div>
 
-      {/* Selection info */}
-      {r && (
-        <div className="context-banner">
-          <span>Mostrando <strong>{r.cultivo}</strong></span>
-        </div>
-      )}
-
-      {/* Period selector */}
-      {periodOptions.length > 1 && (
-        <div className="period-chips">
-          {periodOptions.map(p => (
-            <button
-              key={String(p.periodo)}
-              className={`period-chip ${p.periodo === selectedPeriodo ? "period-chip--active" : ""}`}
-              onClick={() => setFocusPeriodo(p.periodo)}
-            >
-              {String(p.periodo).slice(0, 7)}
-              <span className="period-chip-ira">{p.ira_score?.toFixed(3)}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* IRA Score */}
-      {r && (
+      {/* ── GENERAL VIEW ── */}
+      {isGeneral && generalSummary && (
         <>
-          <div className="ira-hero">
-            <RiskBadge nivel={r.ira_nivel} />
-            <span className="ira-hero-score">IRA {r.ira_score?.toFixed(3)}</span>
-          </div>
-
-          {/* Sub-index bars */}
-          <div className="bars-group">
-            <h4 className="section-label">Componentes del riesgo</h4>
-            <Bar value={r.spc} label="Clima (SPC)" color={getScoreColor(r.spc)} />
-            <Bar value={r.sep} label="Cultivo (SEP)" color={getScoreColor(r.sep)} />
-            <Bar value={r.sve} label="Pobreza (SVE)" color={getScoreColor(r.sve)} />
-          </div>
-
-          {/* Key indicators */}
-          <div className="metrics-grid">
-            <div className="metric-card">
-              <span className="metric-value">{fmtTon(r.rendimiento_predicho)}</span>
-              <span className="metric-label">Rendimiento esperado</span>
-            </div>
-            <div className="metric-card">
-              <span className="metric-value">{r.anomaly_score != null ? r.anomaly_score.toFixed(2) : "\u2014"}</span>
-              <span className="metric-label">Anomalía</span>
-            </div>
-            <div className="metric-card">
-              <span className="metric-value">{r.rendimiento_nnet != null ? fmtTon(r.rendimiento_nnet) : "\u2014"}</span>
-              <span className="metric-label">Red Neuronal</span>
+          <div className="card-section">
+            <h4 className="section-label">Resumen del municipio</h4>
+            <div className="metrics-grid">
+              <div className="metric-card">
+                <span className="metric-value">{generalSummary.totalCultivos}</span>
+                <span className="metric-label">Cultivos reportados</span>
+              </div>
+              <div className="metric-card">
+                <span className="metric-value">{generalSummary.avgIRA?.toFixed(3) ?? "\u2014"}</span>
+                <span className="metric-label">IRA promedio</span>
+              </div>
             </div>
           </div>
 
-          {/* Top-3 features */}
-          {(() => {
-            try {
-              const top3 = typeof r.importancia_top3 === "string" ? JSON.parse(r.importancia_top3) : r.importancia_top3;
-              if (!Array.isArray(top3) || top3.length === 0) return null;
-              return (
-                <div className="card-section">
-                  <h4 className="section-label">Variables más influyentes</h4>
-                  <div className="top3-grid">
-                    {top3.map((item, i) => (
-                      <div key={i} className="top3-chip">
-                        <span className="top3-rank">{i + 1}</span>
-                        <span className="top3-var">{item.var}</span>
-                        <span className="top3-shap">{item.shap?.toFixed(4)}</span>
-                      </div>
-                    ))}
-                  </div>
+          {/* Risk distribution */}
+          <div className="card-section">
+            <h4 className="section-label">Distribución del riesgo</h4>
+            <div className="metrics-grid">
+              {Object.entries(generalSummary.niveles).map(([nivel, count]) => (
+                <div key={nivel} className="metric-card" style={{ flex: 1, minWidth: 60 }}>
+                  <RiskBadge nivel={nivel} />
+                  <span className="metric-value" style={{ fontSize: "1rem" }}>{count}</span>
                 </div>
-              );
-            } catch {
-              return null;
-            }
-          })()}
+              ))}
+            </div>
+          </div>
+
+          {/* Top 3 */}
+          <div className="card-section">
+            <h4 className="section-label">Mayor riesgo</h4>
+            {generalSummary.top3.map((d, i) => (
+              <div key={d.cultivo} className="agent-item" style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>{i + 1}. {d.cultivo}</span>
+                <span><RiskBadge nivel={d.ira_nivel} /> IRA {d.ira_score?.toFixed(3)}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom 3 */}
+          <div className="card-section">
+            <h4 className="section-label">Menor riesgo</h4>
+            {generalSummary.bottom3.map((d, i) => (
+              <div key={d.cultivo} className="agent-item" style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>{i + 1}. {d.cultivo}</span>
+                <span><RiskBadge nivel={d.ira_nivel} /> IRA {d.ira_score?.toFixed(3)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── CULTIVO DETAIL VIEW ── */}
+      {!isGeneral && (
+        <>
+          {/* Period selector */}
+          {periodOptions.length > 1 && (
+            <div className="period-chips">
+              {periodOptions.map(p => (
+                <button
+                  key={String(p.periodo)}
+                  className={`period-chip ${p.periodo === displayRow?.periodo ? "period-chip--active" : ""} ${p.rendimiento_predicho == null ? "period-chip--incomplete" : ""}`}
+                  onClick={() => setFocusPeriodo(p.periodo)}
+                  title={p.rendimiento_predicho == null ? "Sin datos de rendimiento para este período" : undefined}
+                >
+                  {String(p.periodo).slice(0, 7)}
+                  <span className="period-chip-ira">{p.ira_score?.toFixed(3)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {displayRow && (
+            <>
+              <div className="ira-hero">
+                <RiskBadge nivel={displayRow.ira_nivel} />
+                <span className="ira-hero-score">IRA {displayRow.ira_score?.toFixed(3)}</span>
+              </div>
+
+              <div className="bars-group">
+                <h4 className="section-label">Componentes del riesgo</h4>
+                <Bar value={displayRow.spc} label="Peligro climático (SPC)" color={getScoreColor(displayRow.spc)} />
+                <Bar value={displayRow.sep} label="Exposición productiva (SEP)" color={getScoreColor(displayRow.sep)} />
+                <Bar value={displayRow.sve} label="Vulnerabilidad social (SVE)" color={getScoreColor(displayRow.sve)} />
+              </div>
+
+              <div className="metrics-grid">
+                {displayRow.rendimiento_predicho != null && (
+                  <div className="metric-card">
+                    <span className="metric-value">{fmtTon(displayRow.rendimiento_predicho)}</span>
+                    <span className="metric-label">Rendimiento esperado</span>
+                  </div>
+                )}
+                <div className="metric-card">
+                  <span className="metric-value">{displayRow.anomaly_score != null ? displayRow.anomaly_score.toFixed(2) : "\u2014"}</span>
+                  <span className="metric-label">Anomalía del rendimiento</span>
+                </div>
+                {displayRow.rendimiento_nnet != null && (
+                  <div className="metric-card">
+                    <span className="metric-value">{fmtTon(displayRow.rendimiento_nnet)}</span>
+                    <span className="metric-label">Rendimiento (Red Neuronal)</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Top-3 features */}
+              {(() => {
+                try {
+                  const top3 = typeof displayRow.importancia_top3 === "string" ? JSON.parse(displayRow.importancia_top3) : displayRow.importancia_top3;
+                  if (!Array.isArray(top3) || top3.length === 0) return null;
+                  return (
+                    <div className="card-section">
+                      <h4 className="section-label">Variables más influyentes</h4>
+                      <div className="top3-grid">
+                        {top3.map((item, i) => (
+                          <div key={i} className="top3-chip">
+                            <span className="top3-rank">{i + 1}</span>
+                            <span className="top3-var">{item.var}</span>
+                            <span className="top3-shap">{item.shap?.toFixed(4)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                } catch {
+                  return null;
+                }
+              })()}
+
+              <div style={{ marginTop: 12, textAlign: "right" }}>
+                <a
+                  href={`/reporte/${codigo}?cultivo=${encodeURIComponent(displayRow.cultivo)}&periodo=${encodeURIComponent(displayRow.periodo)}`}
+                  target="_blank"
+                  className="btn btn--ghost"
+                  style={{ fontSize: "0.8125rem" }}
+                >
+                  Reporte PDF ({displayRow.cultivo}) →
+                </a>
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -245,12 +355,7 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
           <h4 className="section-label">Pérdida de bosque</h4>
           <div className="metrics-grid">
             <div className="metric-card">
-              <span className="metric-value">{
-                (() => {
-                  const e = Object.entries(deforData.data).find(([k]) => k.startsWith("deforestacion_") && !k.includes("total") && !k.includes("promedio") && !k.includes("tendencia"));
-                  return e ? fmtHa(e[1]) : "\u2014";
-                })()
-              }</span>
+              <span className="metric-value">{(() => { const e = Object.entries(deforData.data).find(([k]) => k.startsWith("deforestacion_") && !k.includes("total") && !k.includes("promedio") && !k.includes("tendencia")); return e ? fmtHa(e[1]) : "\u2014"; })()}</span>
               <span className="metric-label">Último año</span>
             </div>
             <div className="metric-card">
@@ -314,19 +419,15 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
         </div>
       )}
 
-      {/* Reporte PDF */}
-      {r && (
-        <div style={{ marginTop: 12, textAlign: "right" }}>
-          <a href={`/reporte/${codigo}?cultivo=${encodeURIComponent(r.cultivo)}&periodo=${encodeURIComponent(r.periodo)}`} target="_blank" className="btn btn--ghost" style={{ fontSize: "0.8125rem" }}>
-            Reporte PDF ({r.cultivo}) →
-          </a>
-        </div>
-      )}
-
       {/* Chat IA */}
       <div className="card-section">
         <h4 className="section-label">Asistente IA</h4>
-        {r && <p className="context-note">El asistente analiza específicamente el cultivo <strong>{r.cultivo}</strong>.</p>}
+        <p className="context-note">
+          {isGeneral
+            ? "El asistente analiza el municipio en general."
+            : `El asistente analiza específicamente el cultivo ${displayRow?.cultivo || selectedCultivo}.`
+          }
+        </p>
         <div className="chat-messages">
           {messages.map((m, i) => (
             <div key={i} className={`chat-message chat-message--${m.role}`}>

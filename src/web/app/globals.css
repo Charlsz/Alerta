@@ -512,6 +512,10 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 0 0 1px var(--accent);
 }
 
+.period-chip--incomplete {
+  opacity: 0.55;
+}
+
 .period-chip-ira {
   color: var(--text-tertiary);
   font-family: monospace;
