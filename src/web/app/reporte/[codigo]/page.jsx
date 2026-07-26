@@ -2,6 +2,11 @@
 import { use, useEffect, useState } from "react";
 import RiskBadge from "@/app/components/RiskBadge";
 
+function fmtTon(v) {
+  if (v == null) return "—";
+  return Number(v).toLocaleString("es-CO", { maximumFractionDigits: 1 }) + " t/ha";
+}
+
 export default function ReportePage({ params, searchParams }) {
   const { codigo } = use(params);
   const sp = use(searchParams);
@@ -86,12 +91,12 @@ export default function ReportePage({ params, searchParams }) {
         </div>
         <div className="report-card">
           <h3>Rendimiento (XGBoost)</h3>
-          <div className="value">{r.rendimiento_predicho != null ? `${r.rendimiento_predicho} toneladas/ha` : "—"}</div>
+          <div className="value">{fmtTon(r.rendimiento_predicho)}</div>
           <div className="sub">{r.rendimiento_ic_inf != null ? `Intervalo de Confianza 95%: [${r.rendimiento_ic_inf.toFixed(1)} – ${r.rendimiento_ic_sup.toFixed(1)}]` : ""}</div>
         </div>
         <div className="report-card">
           <h3>Rendimiento (Red Neuronal)</h3>
-          <div className="value">{r.rendimiento_nnet != null ? `${r.rendimiento_nnet} toneladas/ha` : "—"}</div>
+          <div className="value">{fmtTon(r.rendimiento_nnet)}</div>
           <div className="sub">{r.nnet_ic_inf != null ? `Intervalo de Confianza 95%: [${r.nnet_ic_inf.toFixed(1)} – ${r.nnet_ic_sup.toFixed(1)}]` : ""}</div>
         </div>
       </div>
