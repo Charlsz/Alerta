@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import useAPI from "../hooks/useAPI";
 import RiskBadge from "./RiskBadge";
 
@@ -35,11 +35,26 @@ function fmtTon(v) {
 }
 
 export default function MunicipioCard({ codigo, cultivo, periodo }) {
-  const hasSelection = !!(cultivo && periodo);
-  const params = new URLSearchParams();
-  if (cultivo) params.set("cultivo", cultivo);
-  if (periodo) params.set("periodo", periodo);
-  const { data, loading } = useAPI(codigo ? `/api/municipio/${codigo}?${params}` : null);
+  const hasPropSelection = !!(cultivo && periodo);
+
+  // When props bring cultivo/periodo, filter server-side (efficient).
+  // When no props, fetch all data for the municipio.
+  const apiParams = new URLSearchParams();
+  if (hasPropSelection) {
+    apiParams.set("cultivo", cultivo);
+    apiParams.set("periodo", periodo);
+  }
+  const { data, loading } = useAPI(codigo ? `/api/municipio/${codigo}?${apiParams}` : null);
+
+  // Internal selection for overview mode
+  const [focusCultivo, setFocusCultivo] = useState(null);
+  const [focusPeriodo, setFocusPeriodo] = useState(null);
+
+  // Effective selection: props > internal state
+  const effectiveCultivo = hasPropSelection ? cultivo : focusCultivo;
+  const effectivePeriodo = hasPropSelection ? periodo : focusPeriodo;
+  const hasSelection = !!(effectiveCultivo && effectivePeriodo);
+
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
@@ -49,32 +64,50 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
   const [loaded, setLoaded] = useState(false);
   const keyRef = useRef(null);
 
-  // Auto-load NDVI, deforestation, multi-agent on mount/change
+  // Reset internal selection when codigo changes
   useEffect(() => {
     if (!codigo) return;
     const k = `${codigo}-${cultivo}`;
     if (keyRef.current && keyRef.current !== k) {
       setMultiAgent(null); setNdviData(null); setDeforData(null); setMessages([]); setLoaded(false);
+      setFocusCultivo(null); setFocusPeriodo(null);
     }
     keyRef.current = k;
     Promise.all([
       fetch(`/api/municipio/${codigo}/deforestacion`).then(r => r.json()).catch(() => null),
       fetch(`/api/municipio/${codigo}/ndvi`).then(r => r.json()).catch(() => null),
-      fetch(`/api/municipio/${codigo}/multiagent?cultivo=${encodeURIComponent(cultivo || '')}&periodo=${encodeURIComponent(periodo || '')}`).then(r => r.json()).catch(() => null),
+      fetch(`/api/municipio/${codigo}/multiagent?cultivo=${encodeURIComponent(effectiveCultivo || '')}&periodo=${encodeURIComponent(effectivePeriodo || '')}`).then(r => r.json()).catch(() => null),
     ]).then(([d, n, m]) => {
       setDeforData(d);
       setNdviData(n);
       setMultiAgent(m);
       setLoaded(true);
     });
-  }, [codigo, cultivo]);
+  }, [codigo, cultivo]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!codigo) return <p className="empty-state">Selecciona un municipio en el mapa o ranking.</p>;
-  if (loading) return <p className="empty-state">Cargando...</p>;
-  if (!data?.data?.length) return <p className="empty-state">Sin datos para este municipio.</p>;
+  // Compute display row
+  const displayRow = useMemo(() => {
+    if (!data?.data?.length) return null;
+    if (!hasSelection) return null;
+    if (hasPropSelection) return data.data[0];
+    return data.data.find(d => d.cultivo === effectiveCultivo && d.periodo === effectivePeriodo) || null;
+  }, [data, hasSelection, hasPropSelection, effectiveCultivo, effectivePeriodo]);
 
-  const r = data.data[0];
-  const totalCultivos = new Set(data.data.map(d => d.cultivo)).size;
+  // For overview mode: latest row per cultivo, sorted by IRA desc
+  const cultivoOptions = useMemo(() => {
+    if (!data?.data) return [];
+    const latest = {};
+    for (const d of data.data) {
+      const key = d.cultivo;
+      if (!latest[key] || d.periodo > latest[key].periodo) {
+        latest[key] = d;
+      }
+    }
+    return Object.values(latest).sort((a, b) => (b.ira_score || 0) - (a.ira_score || 0));
+  }, [data]);
+
+  const totalCultivos = cultivoOptions.length;
+  const nthCultivos = totalCultivos > 1 ? `${totalCultivos} cultivos` : "1 cultivo";
 
   const ask = async () => {
     const q = question.trim();
@@ -86,7 +119,7 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
       const res = await fetch(`/api/municipio/${codigo}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, cultivo, periodo }),
+        body: JSON.stringify({ question: q, cultivo: effectiveCultivo, periodo: effectivePeriodo }),
       });
       const json = await res.json();
       setMessages((prev) => [...prev, { role: "assistant", text: json.answer || "Error al obtener respuesta." }]);
@@ -96,7 +129,51 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
     setAsking(false);
   };
 
-  const nthCultivos = totalCultivos > 1 ? `${totalCultivos} cultivos` : "1 cultivo";
+  // ── Estados vacíos ──────────────────────────────────────────────────────
+  if (!codigo) return <p className="empty-state">Selecciona un municipio en el mapa o ranking.</p>;
+  if (loading) return <p className="empty-state">Cargando...</p>;
+  if (!data?.data?.length) return <p className="empty-state">Sin datos para este municipio.</p>;
+  if (!hasSelection) {
+    return (
+      <div className="card">
+        <div className="card-header">
+          <h2 className="card-title">{data.data[0].nombre_municipio || codigo}</h2>
+          <p className="card-subtitle">{data.data[0].nombre_departamento}</p>
+        </div>
+
+        <div className="context-banner">
+          <span>Este municipio tiene <strong>{nthCultivos}</strong> con datos de IRA</span>
+        </div>
+
+        <div className="card-section">
+          <h4 className="section-label">Selecciona un cultivo para ver sus indicadores</h4>
+          <div className="cultivo-grid">
+            {cultivoOptions.map((c) => (
+              <button
+                key={c.cultivo}
+                className="cultivo-option"
+                onClick={() => { setFocusCultivo(c.cultivo); setFocusPeriodo(c.periodo); }}
+              >
+                <span className="cultivo-option-name">{c.cultivo}</span>
+                <RiskBadge nivel={c.ira_nivel} />
+                <span className="cultivo-option-ira">IRA {c.ira_score?.toFixed(3)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Reporte PDF */}
+        <div style={{ marginTop: 12, textAlign: "right" }}>
+          <a href={`/reporte/${codigo}`} target="_blank" className="btn btn--ghost" style={{ fontSize: "0.8125rem" }}>
+            Reporte PDF completo →
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (!displayRow) return <p className="empty-state">Sin datos para el cultivo seleccionado.</p>;
+  const r = displayRow;
 
   return (
     <div className="card">
@@ -107,10 +184,11 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
 
       {/* Context banner */}
       <div className="context-banner">
-        {hasSelection ? (
-          <span>Mostrando datos de <strong>{r.cultivo}</strong></span>
-        ) : (
-          <span>Vista general — <strong>{nthCultivos}</strong> en este municipio</span>
+        <span>Mostrando datos de <strong>{r.cultivo}</strong></span>
+        {totalCultivos > 1 && (
+          <button className="context-banner-btn" onClick={() => { setFocusCultivo(null); setFocusPeriodo(null); }}>
+            Ver todos los cultivos
+          </button>
         )}
       </div>
 
@@ -221,8 +299,8 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
 
       {/* Reporte PDF */}
       <div style={{ marginTop: 12, textAlign: "right" }}>
-        <a href={`/reporte/${codigo}${hasSelection ? `?cultivo=${encodeURIComponent(r.cultivo)}&periodo=${encodeURIComponent(r.periodo)}` : ""}`} target="_blank" className="btn btn--ghost" style={{ fontSize: "0.8125rem" }}>
-          Reporte PDF {hasSelection ? `(${r.cultivo})` : "completo"} →
+        <a href={`/reporte/${codigo}?cultivo=${encodeURIComponent(r.cultivo)}&periodo=${encodeURIComponent(r.periodo)}`} target="_blank" className="btn btn--ghost" style={{ fontSize: "0.8125rem" }}>
+          Reporte PDF ({r.cultivo}) →
         </a>
       </div>
 
@@ -230,9 +308,7 @@ export default function MunicipioCard({ codigo, cultivo, periodo }) {
       <div className="card-section">
         <h4 className="section-label">Asistente IA</h4>
         <p className="context-note">
-          {hasSelection
-            ? `El asistente analiza específicamente el cultivo ${r.cultivo}.`
-            : `El asistente tiene acceso a todos los ${nthCultivos} del municipio.`}
+          El asistente analiza específicamente el cultivo <strong>{r.cultivo}</strong>.
         </p>
         <div className="chat-messages">
           {messages.map((m, i) => (

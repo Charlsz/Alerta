@@ -387,6 +387,62 @@ a:hover { text-decoration: underline; }
   margin-bottom: 16px;
 }
 
+.context-banner-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.75rem;
+  margin-left: 8px;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.context-banner-btn:hover {
+  color: var(--accent-hover);
+}
+
+/* ======== Cultivo Selector Grid ======== */
+
+.cultivo-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cultivo-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  font-size: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.cultivo-option:hover {
+  border-color: var(--accent);
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.12);
+}
+
+.cultivo-option-name {
+  font-weight: 600;
+  flex: 1;
+  font-size: 0.8125rem;
+}
+
+.cultivo-option-ira {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
 .context-note {
   font-size: 0.6875rem;
   color: var(--text-tertiary);
