@@ -84,7 +84,7 @@ Sobre el IRA base se aplican cuatro componentes de inteligencia artificial:
 
 2. **Predicción de rendimiento (RandomForest/XGBoost)** — predice el rendimiento esperado (t/ha) del próximo ciclo agrícola por municipio y cultivo usando 22 variables predictoras. Cada cultivo con ≥50 muestras recibe su propio modelo; cultivos pequeños usan un modelo global. La importancia de variables se explica vía SHAP, permitiendo al usuario entender qué factores disparan la alerta en cada municipio.
 
-3. **Asistente conversacional (LLM via OpenRouter)** — por cada municipio, el usuario puede hacer preguntas en lenguaje natural sobre el nivel de riesgo, los componentes del IRA, la predicción de rendimiento y recibir recomendaciones de mitigación. Usa `openrouter/owl-alpha` (modelo gratuito) con contexto completo de los datos del municipio.
+3. **Asistente conversacional (LLM via OpenRouter)** — por cada municipio, el usuario puede hacer preguntas en lenguaje natural sobre el nivel de riesgo, los componentes del IRA, la predicción de rendimiento y recibir recomendaciones de mitigación. Usa `nvidia/nemotron-3-super-120b-a12b:free` (modelo gratuito) con contexto completo de los datos del municipio.
 
 4. **Generación de reportes ejecutivos (IA generativa)** — el LLM produce un reporte estructurado con análisis de riesgo, desglose de componentes, predicción de rendimiento y recomendaciones concretas, renderizado como página imprimible/PDF.
 
@@ -135,7 +135,7 @@ Sobre el IRA base se aplican cuatro componentes de inteligencia artificial:
 - **Riesgo**: IRA + IsolationForest + RandomForest para predicción de rendimiento
 - **API**: FastAPI con 9 endpoints REST (filters, ranking, municipios, municipio detalle, chat LLM, multiagent, ndvi, deforestacion, status)
 - **Frontend**: Next.js 15 con Leaflet para mapa interactivo, chat asistente, reportes PDF
-- **LLM**: OpenRouter API (modelo `openrouter/owl-alpha`) para asistente conversacional y generación de reportes
+- **LLM**: OpenRouter API (modelo `nvidia/nemotron-3-super-120b-a12b:free`) para asistente conversacional y generación de reportes
 - **Automatización**: GitHub Actions (cron semanal) + Docker Compose
 
 ## Herramientas y tecnologías
