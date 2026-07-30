@@ -20,6 +20,18 @@ El sistema está diseñado para anticipar pérdidas de cosecha antes de que ocur
 
 Incluye un **asistente conversacional con IA** que explica el riesgo de cada municipio en lenguaje natural y genera **reportes ejecutivos automatizados en PDF** con análisis y recomendaciones de mitigación.
 
+## Secrets recomendados en el Space
+
+| Secret | Uso |
+|--------|-----|
+| `OPENROUTER_API_KEY` | Chat y reporte PDF con IA |
+| `GFW_API_KEY` | Refresh de deforestación en vivo |
+| `ALERTA_LIVE_REFRESH` | `1` para habilitar refresh en background |
+| `ALERTA_DUCKDB_PATH` | `data/alerta_serving.duckdb` |
+| `ALERTA_GFW_REFRESH_HOURS` | `168` (semanal) |
+| `API_PORT` | `8000` |
+| `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000` (dentro del contenedor) |
+
 ## Enunciado del reto
 
 **Agricultura y Desarrollo Rural — Datos Abiertos Colombia, Nivel Avanzado**
