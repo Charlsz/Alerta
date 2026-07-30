@@ -10,10 +10,11 @@ export default function Ranking({ onSelect }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [order, setOrder] = useState("desc");
 
-  const fetchPage = useCallback(async (q, p) => {
+  const fetchPage = useCallback(async (q, p, currentOrder) => {
     setLoading(true);
-    const params = new URLSearchParams({ limit: PAGE_SIZE, offset: (p - 1) * PAGE_SIZE });
+    const params = new URLSearchParams({ limit: PAGE_SIZE, offset: (p - 1) * PAGE_SIZE, order: currentOrder });
     if (q) params.set("search", q);
     try {
       const res = await fetch(`/api/ranking?${params}`);
@@ -27,7 +28,12 @@ export default function Ranking({ onSelect }) {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchPage(search, page); }, [search, page, fetchPage]);
+  useEffect(() => { fetchPage(search, page, order); }, [search, page, order, fetchPage]);
+
+  const toggleOrder = () => {
+    setPage(1);
+    setOrder((current) => (current === "desc" ? "asc" : "desc"));
+  };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const start = (page - 1) * PAGE_SIZE;
@@ -49,7 +55,17 @@ export default function Ranking({ onSelect }) {
       <table className="table">
         <thead>
           <tr>
-            <th>#</th><th>Municipio</th><th>Depto</th><th>Cultivo</th><th>IRA</th><th>Nivel</th>
+            <th>#</th>
+            <th>Municipio</th>
+            <th>Depto</th>
+            <th>Cultivo</th>
+            <th>
+              <button className="sort-button" type="button" onClick={toggleOrder} aria-label={`Ordenar IRA ${order === "desc" ? "ascendente" : "descendente"}`}>
+                <span>IRA</span>
+                <span className={`sort-arrow ${order === "desc" ? "sort-arrow--down" : "sort-arrow--up"}`} aria-hidden="true">↕</span>
+              </button>
+            </th>
+            <th>Nivel</th>
           </tr>
         </thead>
         <tbody>

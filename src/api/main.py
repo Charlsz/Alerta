@@ -198,6 +198,7 @@ def get_ranking(
     cultivo: str = None,
     departamento: str = None,
     search: str = None,
+    order: str = Query("desc", pattern="^(asc|desc)$"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
@@ -233,7 +234,7 @@ def get_ranking(
                r.anomaly_score, r.rendimiento_predicho,
                m.nombre_municipio, m.nombre_departamento
         {wheresql}
-        ORDER BY r.ira_score DESC
+        ORDER BY r.ira_score {order.upper()}
         LIMIT ? OFFSET ?
     """, params + [limit, offset]).fetchall()
 
