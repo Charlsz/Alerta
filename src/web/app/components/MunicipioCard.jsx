@@ -5,11 +5,50 @@ import RiskBadge from "./RiskBadge";
 
 const GENERAL = "__general__";
 
-function Bar({ value, label, color }) {
+/** Compare periods by date only — ignores `T` vs space time suffixes from different APIs. */
+function periodKey(value) {
+  return String(value || "").slice(0, 10);
+}
+
+function samePeriod(a, b) {
+  return Boolean(a) && Boolean(b) && periodKey(a) === periodKey(b);
+}
+
+function fmtMonth(periodo) {
+  const key = periodKey(periodo);
+  if (!key || key.length < 7) return "—";
+  const [year, month] = key.split("-");
+  const names = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const idx = Number(month) - 1;
+  if (!year || idx < 0 || idx > 11) return key.slice(0, 7);
+  return `${names[idx]} ${year}`;
+}
+
+function riskPlain(nivel) {
+  const map = {
+    Bajo: "condiciones estables por ahora",
+    Medio: "hay que prestar atención",
+    Alto: "riesgo importante, priorice acciones",
+    Crítico: "alerta urgente, actúe lo antes posible",
+    "Sin dato": "aún no hay suficiente información",
+  };
+  return map[nivel] || "revise el detalle abajo";
+}
+
+const COMPONENT_HELP = {
+  spc: "Mide si el clima (lluvia, calor, sequía) está peor de lo normal en este municipio.",
+  sep: "Mide qué tan importante es este cultivo para la producción local. Si pesa mucho, un mal clima duele más.",
+  sve: "Mide qué tan difícil es aguantar un golpe económico: precios de insumos y condiciones del territorio.",
+};
+
+function Bar({ value, label, help, color }) {
   const pct = Math.round((value ?? 0) * 100);
   return (
     <div className="bar-row">
-      <span className="bar-label">{label}</span>
+      <div className="bar-copy">
+        <span className="bar-label">{label}</span>
+        {help && <span className="bar-help">{help}</span>}
+      </div>
       <div className="bar-track">
         <div className="bar-fill" style={{ width: `${pct}%`, background: color || "var(--color-primary)" }} />
       </div>
@@ -34,15 +73,6 @@ function fmtHa(v) {
 function fmtTon(v) {
   if (v == null) return "\u2014";
   return Number(v).toLocaleString("es-CO", { maximumFractionDigits: 1 }) + " t/ha";
-}
-
-/** Compare periods by date only — ignores `T` vs space time suffixes from different APIs. */
-function periodKey(value) {
-  return String(value || "").slice(0, 10);
-}
-
-function samePeriod(a, b) {
-  return Boolean(a) && Boolean(b) && periodKey(a) === periodKey(b);
 }
 
 /** From a list of periods, return the id of the one that should be shown by default. */
@@ -228,6 +258,35 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
         <p className="card-subtitle">{firstRow.nombre_departamento}</p>
       </div>
 
+      <div className="scope-banner" role="status">
+        {isGeneral ? (
+          <>
+            <p className="scope-banner-title">Vista general del municipio</p>
+            <p className="scope-banner-text">
+              Aquí se resume el último período de cada cultivo reportado
+              ({generalSummary?.totalCultivos ?? 0} cultivos).
+              No hay un solo cultivo seleccionado.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="scope-banner-title">
+              Estás viendo: <strong>{displayRow?.cultivo || selectedCultivo}</strong>
+              {" · "}
+              {fmtMonth(displayRow?.periodo)}
+            </p>
+            <p className="scope-banner-text">
+              <RiskBadge nivel={displayRow?.ira_nivel} />
+              {" "}
+              IRA {displayRow?.ira_score != null ? displayRow.ira_score.toFixed(3) : "—"}
+              {" — "}
+              {riskPlain(displayRow?.ira_nivel)}.
+              Este es el mismo dato que aparece en el mapa y en la tabla.
+            </p>
+          </>
+        )}
+      </div>
+
       {/* Cultivo tabs */}
       <div className="cultivo-tabs">
         <button
@@ -253,6 +312,9 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
         <>
           <div className="card-section">
             <h4 className="section-label">Resumen del municipio</h4>
+            <p className="section-help">
+              Promedio del último período de cada cultivo. Sirve para ver el panorama completo del municipio.
+            </p>
             <div className="metrics-grid">
               <div className="metric-card">
                 <span className="metric-value">{generalSummary.totalCultivos}</span>
@@ -261,13 +323,14 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
               <div className="metric-card">
                 <span className="metric-value">{generalSummary.avgIRA?.toFixed(3) ?? "\u2014"}</span>
                 <span className="metric-label">IRA promedio</span>
+                <span className="metric-help">Promedio simple de los cultivos</span>
               </div>
             </div>
           </div>
 
           {/* Risk distribution */}
           <div className="card-section">
-            <h4 className="section-label">Distribución del riesgo</h4>
+            <h4 className="section-label">¿Cuántos cultivos hay en cada nivel?</h4>
             <div className="metrics-grid">
               {Object.entries(generalSummary.niveles).map(([nivel, count]) => (
                 <div key={nivel} className="metric-card" style={{ flex: 1, minWidth: 60 }}>
@@ -281,6 +344,7 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
           {/* Top 3 */}
           <div className="card-section">
             <h4 className="section-label">Mayor riesgo</h4>
+            <p className="section-help">Los cultivos que hoy necesitan más atención en este municipio.</p>
             {generalSummary.top3.map((d, i) => (
               <div key={d.cultivo} className="agent-item" style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>{i + 1}. {d.cultivo}</span>
@@ -292,6 +356,7 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
           {/* Bottom 3 */}
           <div className="card-section">
             <h4 className="section-label">Menor riesgo</h4>
+            <p className="section-help">Los cultivos con mejor situación relativa en este momento.</p>
             {generalSummary.bottom3.map((d, i) => (
               <div key={d.cultivo} className="agent-item" style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>{i + 1}. {d.cultivo}</span>
@@ -327,13 +392,17 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
               <div className="ira-hero">
                 <RiskBadge nivel={displayRow.ira_nivel} />
                 <span className="ira-hero-score">IRA {displayRow.ira_score?.toFixed(3)}</span>
+                <p className="ira-hero-plain">{riskPlain(displayRow.ira_nivel)}</p>
               </div>
 
               <div className="bars-group">
-                <h4 className="section-label">Componentes del riesgo</h4>
-                <Bar value={displayRow.spc} label="Peligro climático (SPC)" color={getScoreColor(displayRow.spc)} />
-                <Bar value={displayRow.sep} label="Exposición productiva (SEP)" color={getScoreColor(displayRow.sep)} />
-                <Bar value={displayRow.sve} label="Vulnerabilidad económica (SVE)" color={getScoreColor(displayRow.sve)} />
+                <h4 className="section-label">De dónde sale este riesgo</h4>
+                <p className="section-help">
+                  El IRA mezcla tres partes. Cada barra va de 0% (poco problema) a 100% (mucho problema).
+                </p>
+                <Bar value={displayRow.spc} label="Peligro climático (SPC)" help={COMPONENT_HELP.spc} color={getScoreColor(displayRow.spc)} />
+                <Bar value={displayRow.sep} label="Exposición productiva (SEP)" help={COMPONENT_HELP.sep} color={getScoreColor(displayRow.sep)} />
+                <Bar value={displayRow.sve} label="Vulnerabilidad económica (SVE)" help={COMPONENT_HELP.sve} color={getScoreColor(displayRow.sve)} />
               </div>
 
               <div className="metrics-grid">
@@ -341,16 +410,19 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
                   <div className="metric-card">
                     <span className="metric-value">{fmtTon(displayRow.rendimiento_predicho)}</span>
                     <span className="metric-label">Rendimiento esperado</span>
+                    <span className="metric-help">Cuánto se espera cosechar por hectárea</span>
                   </div>
                 )}
                 <div className="metric-card">
                   <span className="metric-value">{displayRow.anomaly_score != null ? displayRow.anomaly_score.toFixed(2) : "\u2014"}</span>
                   <span className="metric-label">Puntaje de anomalía</span>
+                  <span className="metric-help">Qué tan raro se ve este caso frente a otros similares</span>
                 </div>
                 {displayRow.rendimiento_nnet != null && (
                   <div className="metric-card">
                     <span className="metric-value">{fmtTon(displayRow.rendimiento_nnet)}</span>
-                    <span className="metric-label">Rendimiento (Red Neuronal)</span>
+                    <span className="metric-label">Rendimiento (modelo avanzado)</span>
+                    <span className="metric-help">Otra estimación hecha con inteligencia artificial</span>
                   </div>
                 )}
               </div>
@@ -362,7 +434,8 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
                   if (!Array.isArray(top3) || top3.length === 0) return null;
                   return (
                     <div className="card-section">
-                      <h4 className="section-label">Variables más influyentes</h4>
+                      <h4 className="section-label">Qué más está influyendo en la alerta</h4>
+                      <p className="section-help">Estas son las variables que más empujan el resultado de este caso.</p>
                       <div className="top3-grid">
                         {top3.map((item, i) => (
                           <div key={i} className="top3-chip">
@@ -386,7 +459,7 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
                   className="btn btn--ghost"
                   style={{ fontSize: "0.8125rem" }}
                 >
-                  Reporte PDF ({displayRow.cultivo}) →
+                  Reporte PDF · {displayRow.cultivo} →
                 </a>
               </div>
             </>
@@ -398,6 +471,7 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
       {deforData?.data && !deforData?.error && (
         <div className="card-section">
           <h4 className="section-label">Pérdida de bosque</h4>
+          <p className="section-help">Hectáreas de bosque perdidas en este municipio (no es solo del cultivo seleccionado).</p>
           <div className="metrics-grid">
             <div className="metric-card">
               <span className="metric-value">{(() => { const e = Object.entries(deforData.data).find(([k]) => k.startsWith("deforestacion_") && !k.includes("total") && !k.includes("promedio") && !k.includes("tendencia")); return e ? fmtHa(e[1]) : "\u2014"; })()}</span>
@@ -423,6 +497,9 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
       {ndviData?.data?.length > 0 && (
         <div className="card-section">
           <h4 className="section-label">Salud de la vegetación (NDVI satelital)</h4>
+          <p className="section-help">
+            El NDVI es una medida desde satélite: valores más altos suelen indicar vegetación más verde y sana.
+          </p>
           <div className="metrics-grid">
             <div className="metric-card">
               <span className="metric-value">{ndviData.data[0].ndvi?.toFixed(3)}</span>
