@@ -50,6 +50,13 @@ def _con():
     return con
 
 
+def _fmt_periodo(value) -> str | None:
+    """Normalize period timestamps to YYYY-MM-DD so map/ranking/card compare equal."""
+    if value is None:
+        return None
+    return str(value)[:10]
+
+
 _IRA_SELECT = """
     SELECT r.*, m.nombre_municipio, m.nombre_departamento
     FROM ira_resultados r
@@ -74,7 +81,10 @@ def _ira_rows(con, codigo: str, cultivo: str = None, periodo: str = None, limit:
     sql = f"{_IRA_SELECT} WHERE {' AND '.join(where)} ORDER BY r.periodo DESC"
     if limit:
         sql += f" LIMIT {int(limit)}"
-    return [dict(zip(_IRA_COLUMNS, r)) for r in con.execute(sql, params).fetchall()]
+    rows = [dict(zip(_IRA_COLUMNS, r)) for r in con.execute(sql, params).fetchall()]
+    for row in rows:
+        row["periodo"] = _fmt_periodo(row.get("periodo"))
+    return rows
 
 
 def _top3(row: dict):
@@ -228,25 +238,35 @@ def get_ranking(
         ON r.codigo_municipio = m.codigo_municipio
     WHERE {clause}"""
 
+    # Whitelist only — never interpolate raw query strings into ORDER BY.
+    order_dir = "ASC" if order.lower() == "asc" else "DESC"
     total = con.execute(f"SELECT COUNT(*) {wheresql}", params).fetchone()[0]
     rows = con.execute(f"""
         SELECT r.codigo_municipio, r.cultivo, r.periodo, r.ira_score, r.ira_nivel,
                r.anomaly_score, r.rendimiento_predicho,
                m.nombre_municipio, m.nombre_departamento
         {wheresql}
-        ORDER BY r.ira_score {order.upper()}
+        ORDER BY r.ira_score {order_dir} NULLS LAST
         LIMIT ? OFFSET ?
     """, params + [limit, offset]).fetchall()
 
     con.close()
-    return {
-        "data": [dict(zip(["codigo_municipio","cultivo","periodo","ira_score","ira_nivel","anomaly_score","rendimiento_predicho","nombre_municipio","nombre_departamento"], r)) for r in rows],
-        "total": total,
-    }
+    keys = ["codigo_municipio","cultivo","periodo","ira_score","ira_nivel","anomaly_score","rendimiento_predicho","nombre_municipio","nombre_departamento"]
+    data = []
+    for r in rows:
+        item = dict(zip(keys, r))
+        item["periodo"] = _fmt_periodo(item.get("periodo"))
+        data.append(item)
+    return {"data": data, "total": total}
 
 
 @app.get("/api/municipios")
 def get_municipios():
+    """Map colors use the highest IRA among each municipio's *latest* period per cultivo.
+
+    This matches ranking row selection (latest period), so map tooltip and card open
+    on the same (cultivo, periodo, ira_score) the table would show for that crop.
+    """
     con = _con()
     if not table_exists(con, "ira_resultados"):
         con.close()
@@ -258,7 +278,15 @@ def get_municipios():
                m.geom as geom
         FROM (
             SELECT DISTINCT ON (codigo_municipio) codigo_municipio, ira_score, ira_nivel, cultivo, periodo
-            FROM ira_resultados
+            FROM (
+                SELECT codigo_municipio, ira_score, ira_nivel, cultivo, periodo,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY codigo_municipio, cultivo
+                           ORDER BY periodo DESC
+                       ) AS _rn
+                FROM ira_resultados
+            ) latest
+            WHERE _rn = 1
             ORDER BY codigo_municipio, ira_score DESC
         ) r
         JOIN municipios_geom m ON r.codigo_municipio = m.codigo_municipio
@@ -273,7 +301,8 @@ def get_municipios():
             "geometry": json.loads(r[7]),
             "properties": {
                 "codigo_municipio": r[0], "municipio": r[1], "departamento": r[2],
-                "ira_score": r[3], "ira_nivel": r[4], "cultivo": r[5], "periodo": str(r[6]),
+                "ira_score": r[3], "ira_nivel": r[4], "cultivo": r[5],
+                "periodo": _fmt_periodo(r[6]),
             },
         })
     return {"type": "FeatureCollection", "features": features}

@@ -36,9 +36,21 @@ function fmtTon(v) {
   return Number(v).toLocaleString("es-CO", { maximumFractionDigits: 1 }) + " t/ha";
 }
 
+/** Compare periods by date only — ignores `T` vs space time suffixes from different APIs. */
+function periodKey(value) {
+  return String(value || "").slice(0, 10);
+}
+
+function samePeriod(a, b) {
+  return Boolean(a) && Boolean(b) && periodKey(a) === periodKey(b);
+}
+
 /** From a list of periods, return the id of the one that should be shown by default. */
 function pickDefaultPeriodId(periods, preferId) {
-  if (preferId) return preferId;
+  if (preferId) {
+    const match = periods.find((p) => samePeriod(p.periodo, preferId));
+    if (match) return match.periodo;
+  }
   if (!periods.length) return null;
   const withData = periods.filter(p => p.rendimiento_predicho != null);
   const pool = withData.length > 0 ? withData : periods;
@@ -51,9 +63,6 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
   // Internal selection state
   const [focusCultivo, setFocusCultivo] = useState(null);
   const [focusPeriodo, setFocusPeriodo] = useState(null);
-
-  const isGeneral = focusCultivo === GENERAL;
-
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
@@ -62,6 +71,15 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
   const [deforData, setDeforData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const keyRef = useRef(null);
+
+  // New map/ranking selection must win over leftover tab/chip focus from a prior open.
+  useEffect(() => {
+    setFocusCultivo(null);
+    setFocusPeriodo(null);
+    setMessages([]);
+  }, [codigo, propCultivo, propPeriodo]);
+
+  const isGeneral = focusCultivo === GENERAL;
 
   // Latest row per cultivo, sorted by IRA desc
   const cultivoOptions = useMemo(() => {
@@ -92,12 +110,12 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
       .sort((a, b) => (a.periodo < b.periodo ? 1 : -1));
   }, [data, selectedCultivo]);
 
-  // Display row — prefer non-null rendimiento_predicho
+  // Display row — honor map/ranking selection; otherwise prefer non-null rendimiento_predicho
   const displayRow = useMemo(() => {
     if (!periodOptions.length) return null;
     const prefer = focusPeriodo || propPeriodo;
     const id = pickDefaultPeriodId(periodOptions, prefer);
-    return periodOptions.find(d => d.periodo === id) || periodOptions[0];
+    return periodOptions.find((d) => samePeriod(d.periodo, id)) || periodOptions[0];
   }, [periodOptions, focusPeriodo, propPeriodo]);
 
   // General summary
@@ -293,11 +311,11 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
               {periodOptions.map(p => (
                 <button
                   key={String(p.periodo)}
-                  className={`period-chip ${p.periodo === displayRow?.periodo ? "period-chip--active" : ""} ${p.rendimiento_predicho == null ? "period-chip--incomplete" : ""}`}
+                  className={`period-chip ${samePeriod(p.periodo, displayRow?.periodo) ? "period-chip--active" : ""} ${p.rendimiento_predicho == null ? "period-chip--incomplete" : ""}`}
                   onClick={() => setFocusPeriodo(p.periodo)}
                   title={p.rendimiento_predicho == null ? "Sin datos de rendimiento para este período" : undefined}
                 >
-                  {String(p.periodo).slice(0, 7)}
+                  {periodKey(p.periodo).slice(0, 7)}
                   <span className="period-chip-ira">{p.ira_score?.toFixed(3)}</span>
                 </button>
               ))}
@@ -315,7 +333,7 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
                 <h4 className="section-label">Componentes del riesgo</h4>
                 <Bar value={displayRow.spc} label="Peligro climático (SPC)" color={getScoreColor(displayRow.spc)} />
                 <Bar value={displayRow.sep} label="Exposición productiva (SEP)" color={getScoreColor(displayRow.sep)} />
-                <Bar value={displayRow.sve} label="Vulnerabilidad social (SVE)" color={getScoreColor(displayRow.sve)} />
+                <Bar value={displayRow.sve} label="Vulnerabilidad económica (SVE)" color={getScoreColor(displayRow.sve)} />
               </div>
 
               <div className="metrics-grid">
@@ -327,7 +345,7 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
                 )}
                 <div className="metric-card">
                   <span className="metric-value">{displayRow.anomaly_score != null ? displayRow.anomaly_score.toFixed(2) : "\u2014"}</span>
-                  <span className="metric-label">Anomalía del rendimiento</span>
+                  <span className="metric-label">Puntaje de anomalía</span>
                 </div>
                 {displayRow.rendimiento_nnet != null && (
                   <div className="metric-card">

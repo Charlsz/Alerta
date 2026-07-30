@@ -15,7 +15,12 @@ export default function Home() {
           <div className="panel-overlay" onClick={() => setSelected(null)}>
             <div className="panel" onClick={(e) => e.stopPropagation()}>
               <button className="panel-close" onClick={() => setSelected(null)}>✕</button>
-              <MunicipioCard codigo={selected.codigo} cultivo={selected.cultivo} periodo={selected.periodo} />
+              <MunicipioCard
+                key={`${selected.codigo}|${selected.cultivo}|${String(selected.periodo || "").slice(0, 10)}`}
+                codigo={selected.codigo}
+                cultivo={selected.cultivo}
+                periodo={selected.periodo}
+              />
             </div>
           </div>
         )}
