@@ -1,3 +1,13 @@
+---
+title: Alerta
+emoji: 🌍
+colorFrom: green
+colorTo: yellow
+sdk: docker
+pinned: false
+app_port: 7860
+---
+
 # Alerta
 
 Plataforma de alerta temprana para riesgo climático agrícola basada en datos abiertos, orientada a priorizar municipios, cultivos y zonas agrícolas vulnerables en Colombia.
@@ -9,6 +19,16 @@ Este proyecto integra datos meteorológicos, productivos, territoriales y socioe
 El sistema está diseñado para anticipar pérdidas de cosecha antes de que ocurran, cuando todavía hay tiempo para actuar.
 
 Incluye un **asistente conversacional con IA** que explica el riesgo de cada municipio en lenguaje natural y genera **reportes ejecutivos automatizados en PDF** con análisis y recomendaciones de mitigación.
+
+## Secrets recomendados en el Space
+
+| Secret | Uso |
+|--------|-----|
+| `OPENROUTER_API_KEY` | Chat y reporte PDF con IA |
+| `GFW_API_KEY` | Refresh de deforestación en vivo |
+| `ALERTA_LIVE_REFRESH` | `1` para habilitar refresh en background |
+| `ALERTA_DUCKDB_PATH` | `data/alerta_serving.duckdb` |
+| `ALERTA_GFW_REFRESH_HOURS` | `168` (semanal) |
 
 ## Enunciado del reto
 
@@ -187,7 +207,7 @@ copy .env.example .env  # Windows
 | Variable | Requerida | Propósito |
 |----------|-----------|-----------|
 | `OPENROUTER_API_KEY` | No (opcional) | Asistente IA y reportes PDF |
-| `GFW_API_KEY` | No (opcional) | Descarga datos de deforestación GFW |
+| `GFW_API_KEY` | No (opcional) | Solo para re-descargar/actualizar deforestación GFW. Tras un clone los JSON ya vienen en `data/raw/` |
 | `SODA_APP_TOKEN` | No (opcional) | Evita rate limiting en datos.gov.co |
 
 ### 1. Instalar dependencias
@@ -238,7 +258,11 @@ make api   # uvicorn en :8000
 make web   # Next.js en :3000
 ```
 
-> **Nota sobre datos de deforestación GFW:** Los archivos `data/raw/raw_gfw_subnational_2_*.json` no están trackeados en git (~21 MB). Si al ejecutar el pipeline ves errores de GFW, coloca `GFW_API_KEY` en `.env` (solicítala en https://data-api.globalforestwatch.org/) o pide los archivos a otro miembro del equipo y ponlos en `data/raw/`.
+> **Datos para clones y Spaces:** La warehouse completa (`data/alerta.duckdb`, ~800MB) **no** va en git. En su lugar el repo incluye:
+> - JSON GFW en `data/raw/` (deforestación)
+> - `data/alerta_serving.duckdb` (~6MB) con solo las tablas que usa la web
+>
+> Así un clone puede levantar API + frontend sin correr el pipeline de 5M filas climáticas. Para **actualizar** deforestación en vivo (HF Spaces) configure `GFW_API_KEY`. Para **actualizar clima + IRA** use GitHub Actions (`make pipeline` + `export_serving_db`) y publique la serving DB en un dataset de Hugging Face (`ALERTA_DUCKDB_URL`).
 
 ### 4. Abrir navegador en `http://localhost:3000`
 
@@ -249,6 +273,26 @@ docker compose build
 docker compose up -d
 ```
 
+### 6. Hugging Face Spaces (free tier)
+
+1. Cree un Space **Docker** y apunte este repo (o haga push del Dockerfile).
+2. En *Settings → Variables and secrets* agregue:
+   - `GFW_API_KEY` — re-descarga deforestación en el Space
+   - `OPENROUTER_API_KEY` — chat / reportes
+   - `ALERTA_LIVE_REFRESH=1`
+   - `ALERTA_GFW_REFRESH_HOURS=168` (semanal; Hansen cambia ~1 vez/año)
+   - `ALERTA_DUCKDB_URL` — (recomendado) URL pública de `alerta_serving.duckdb` en un dataset HF
+   - `ALERTA_DUCKDB_PATH=data/alerta_serving.duckdb`
+3. En GitHub Actions configure secrets `HF_TOKEN` + `HF_DATASET_REPO` (`usuario/alerta-data`) para que el cron suba la serving DB dos veces al día.
+4. El Space arranca la web en `$PORT` y la API en `:8000` dentro del contenedor; el refresh GFW corre en background sin tumbar el servicio.
+
+**Qué es “casi tiempo real” en free tier**
+
+| Dato | Cadencia realista | Quién lo actualiza |
+|------|-------------------|--------------------|
+| Deforestación GFW/Hansen | Semanal (dato fuente ~anual) | Space background + `GFW_API_KEY` |
+| Clima IDEAM + IRA + modelos | 1–2× al día | GitHub Actions → HF dataset → Space descarga |
+| Chat LLM | Al instante | `OPENROUTER_API_KEY` |
 ## Endpoints de la API
 
 | Método | Ruta | Descripción |

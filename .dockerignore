@@ -1,12 +1,20 @@
 .env
 .git
-.gitignore
 __pycache__
 *.pyc
 node_modules
 .next
-data/raw
 data/models
 data/features
 data/processed
 data/warehouse.db
+data/alerta.duckdb
+data/alerta.db
+data/alerta_serving.bak.duckdb
+data/alerta_serving.refresh.duckdb
+data/alerta_serving.tmp.duckdb
+data/alerta_serving.download.duckdb
+# Keep only the GFW JSON files the live refresh can reuse without a key
+data/raw/*
+!data/raw/raw_gfw_subnational_2_tree_cover_loss.json
+!data/raw/raw_gfw_subnational_2_primary_loss.json

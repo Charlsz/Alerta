@@ -11,12 +11,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/web/package.json src/web/package-lock.json* src/web/
 RUN cd src/web && npm install
 COPY src/web/ src/web/
+# In-container API is always localhost:8000 (Spaces / Docker Compose).
+ENV NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 RUN cd src/web && npm run build && \
     cp -r .next/static .next/standalone/.next/ && \
     mkdir -p .next/standalone/public && \
     [ -d public ] && cp -r public/* .next/standalone/public/ 2>/dev/null || true
 
 COPY . .
+# Ensure serving DB path is the default inside the image.
+ENV ALERTA_DUCKDB_PATH=data/alerta_serving.duckdb
+ENV ALERTA_LIVE_REFRESH=1
+ENV ALERTA_GFW_REFRESH_HOURS=168
 
 EXPOSE 8000 3000
 COPY entrypoint.sh /entrypoint.sh
