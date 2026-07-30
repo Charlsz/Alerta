@@ -46,12 +46,91 @@ function componentPlain(key) {
   return map[key] || "";
 }
 
-function splitActions(text) {
+function classifyIra(score) {
+  if (score == null) return null;
+  if (score < 0.25) return "Bajo";
+  if (score < 0.5) return "Medio";
+  if (score < 0.75) return "Alto";
+  return "Crítico";
+}
+
+function avg(rows, field) {
+  const vals = rows.map((r) => r[field]).filter((v) => v != null);
+  if (!vals.length) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function yieldOf(row) {
+  if (!row) return null;
+  if (row.rendimiento_predicho != null) return row.rendimiento_predicho;
+  if (row.rendimiento_nnet != null) return row.rendimiento_nnet;
+  return null;
+}
+
+/** Same IRA/scope logic as MunicipioCard "General"; yield uses latest period that has a prediction. */
+function buildGeneralSummary(rows) {
+  if (!rows?.length) return null;
+  const latest = {};
+  const latestWithYield = {};
+  for (const d of rows) {
+    const key = d.cultivo;
+    if (!latest[key] || d.periodo > latest[key].periodo) latest[key] = d;
+    if (yieldOf(d) != null) {
+      if (!latestWithYield[key] || d.periodo > latestWithYield[key].periodo) {
+        latestWithYield[key] = d;
+      }
+    }
+  }
+  const list = Object.values(latest);
+  const yieldRows = Object.values(latestWithYield);
+  const scores = list.map((d) => d.ira_score).filter((v) => v != null);
+  const niveles = {};
+  for (const d of list) {
+    const n = d.ira_nivel || "Sin dato";
+    niveles[n] = (niveles[n] || 0) + 1;
+  }
+  const sorted = [...list].sort((a, b) => (b.ira_score || 0) - (a.ira_score || 0));
+  const iraAvg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+  const yieldVals = yieldRows.map(yieldOf).filter((v) => v != null);
+  const avgRendimiento = yieldVals.length
+    ? yieldVals.reduce((a, b) => a + b, 0) / yieldVals.length
+    : null;
+  return {
+    totalCultivos: list.length,
+    avgIRA: iraAvg,
+    avgSpc: avg(list, "spc"),
+    avgSep: avg(list, "sep"),
+    avgSve: avg(list, "sve"),
+    avgRendimiento,
+    cultivosConRendimiento: yieldVals.length,
+    niveles,
+    top3: sorted.slice(0, 3),
+    bottom3: sorted.slice(-3).reverse(),
+    list,
+    nombre_municipio: list[0]?.nombre_municipio,
+    nombre_departamento: list[0]?.nombre_departamento,
+  };
+}
+
+function splitParagraphs(text) {
   if (!text) return [];
-  return text
-    .split(/\n+/)
-    .map((l) => l.replace(/^\s*[-•\d.)]+\s*/, "").trim())
+  return String(text)
+    .split(/\n\s*\n/)
+    .map((p) => p.replace(/\s+/g, " ").trim())
     .filter(Boolean);
+}
+
+function pickCultivoRow(rows, cultivo, periodo) {
+  if (!rows?.length) return null;
+  let pool = rows;
+  if (cultivo) pool = pool.filter((r) => r.cultivo === cultivo);
+  if (!pool.length) return rows[0];
+  if (periodo) {
+    const pref = String(periodo).slice(0, 10);
+    const hit = pool.find((r) => String(r.periodo || "").slice(0, 10) === pref);
+    if (hit) return hit;
+  }
+  return [...pool].sort((a, b) => (a.periodo < b.periodo ? 1 : -1))[0];
 }
 
 export default function ReportePage({ params, searchParams }) {
@@ -59,8 +138,10 @@ export default function ReportePage({ params, searchParams }) {
   const sp = use(searchParams);
   const cultivoParam = sp?.cultivo || null;
   const periodoParam = sp?.periodo || null;
+  const isGeneral = !cultivoParam;
 
   const [row, setRow] = useState(null);
+  const [general, setGeneral] = useState(null);
   const [defor, setDefor] = useState(null);
   const [ndvi, setNdvi] = useState(null);
   const [multiAgent, setMultiAgent] = useState(null);
@@ -77,6 +158,8 @@ export default function ReportePage({ params, searchParams }) {
     setAiLoading(true);
     setAi(null);
     setAiError("");
+    setGeneral(null);
+    setRow(null);
 
     const detailParams = new URLSearchParams();
     if (cultivoParam) detailParams.set("cultivo", cultivoParam);
@@ -90,6 +173,7 @@ export default function ReportePage({ params, searchParams }) {
     if (periodoParam) maParams.set("periodo", periodoParam);
 
     Promise.all([
+      // Always load full municipio series for general summary; cultivo view still filters via qs.
       fetch(`/api/municipio/${codigo}${qs ? `?${qs}` : ""}`).then((r) => r.json()),
       fetch(`/api/municipio/${codigo}/deforestacion`).then((r) => r.json()).catch(() => null),
       fetch(`/api/municipio/${codigo}/ndvi`).then((r) => r.json()).catch(() => null),
@@ -97,8 +181,30 @@ export default function ReportePage({ params, searchParams }) {
     ])
       .then(([d, df, n, m]) => {
         if (!vigente) return;
-        const first = d?.data?.[0] || null;
-        setRow(first);
+        const rows = d?.data || [];
+        if (cultivoParam) {
+          setRow(pickCultivoRow(rows, cultivoParam, periodoParam));
+          setGeneral(null);
+        } else {
+          const summary = buildGeneralSummary(rows);
+          setGeneral(summary);
+          if (summary) {
+            setRow({
+              nombre_municipio: summary.nombre_municipio,
+              nombre_departamento: summary.nombre_departamento,
+              cultivo: null,
+              periodo: null,
+              ira_score: summary.avgIRA,
+              ira_nivel: classifyIra(summary.avgIRA),
+              spc: summary.avgSpc,
+              sep: summary.avgSep,
+              sve: summary.avgSve,
+              rendimiento_predicho: summary.avgRendimiento,
+            });
+          } else {
+            setRow(null);
+          }
+        }
         setDefor(df?.data || null);
         setNdvi(n || null);
         setMultiAgent(m?.agentes ? m : null);
@@ -164,12 +270,14 @@ export default function ReportePage({ params, searchParams }) {
   const onCopy = async () => {
     const parts = [
       `Reporte Alerta — ${row?.nombre_municipio || codigo}`,
+      isGeneral ? "Alcance: vista general del municipio" : null,
       row?.cultivo ? `Cultivo: ${row.cultivo}` : null,
       row?.periodo ? `Período: ${periodLabel(row.periodo)}` : null,
-      row?.ira_nivel ? `IRA ${row.ira_score?.toFixed(3)} (${row.ira_nivel})` : null,
+      row?.ira_nivel
+        ? `${isGeneral ? "IRA promedio" : "IRA"} ${row.ira_score?.toFixed(3)} (${row.ira_nivel})`
+        : null,
       "",
-      ai?.secciones?.resumen || ai?.texto || "",
-      ai?.secciones?.acciones || "",
+      ai?.texto || "",
     ].filter((x) => x != null);
     try {
       await navigator.clipboard.writeText(parts.join("\n"));
@@ -211,7 +319,7 @@ export default function ReportePage({ params, searchParams }) {
           ? "var(--medio)"
           : "var(--bajo)";
 
-  const actions = splitActions(ai?.secciones?.acciones);
+  const aiParagraphs = splitParagraphs(ai?.texto);
 
   return (
     <div className="report-page">
@@ -238,17 +346,24 @@ export default function ReportePage({ params, searchParams }) {
           <h1>{row.nombre_municipio || codigo}</h1>
           <p className="report-meta">
             {row.nombre_departamento}
+            {isGeneral
+              ? ` · Vista general · ${general?.totalCultivos ?? 0} cultivos`
+              : ""}
             {row.cultivo ? ` · Cultivo: ${row.cultivo}` : ""}
             {row.periodo ? ` · Período: ${periodLabel(row.periodo)}` : ""}
           </p>
           <p className="report-scope">
-            Este reporte usa exactamente la selección abierta en la ficha
-            {cultivoParam ? ` (${cultivoParam})` : " (vista general)"}.
+            {isGeneral
+              ? "Este reporte resume el último período de cada cultivo del municipio (misma vista General de la ficha)."
+              : `Este reporte usa exactamente la selección abierta en la ficha (${cultivoParam}).`}
           </p>
         </div>
         <div className="report-ira">
           <RiskBadge nivel={row.ira_nivel} />
-          <div className="report-ira-score">IRA {row.ira_score != null ? row.ira_score.toFixed(3) : "—"}</div>
+          <div className="report-ira-score">
+            {isGeneral ? "IRA promedio" : "IRA"}{" "}
+            {row.ira_score != null ? row.ira_score.toFixed(3) : "—"}
+          </div>
           <p className="report-ira-plain">{riskPlain(row.ira_nivel)}</p>
         </div>
       </header>
@@ -269,116 +384,195 @@ export default function ReportePage({ params, searchParams }) {
           <div className="report-ai-error">
             <p>{aiError}</p>
             <p className="report-help">
-              Aun así puede imprimir los indicadores de abajo. Para el texto con IA, configure
-              OPENROUTER_API_KEY en el servidor.
+              Los indicadores numéricos de abajo sí están disponibles. Puede imprimir el reporte sin el texto de IA.
             </p>
           </div>
         )}
 
-        {!aiLoading && ai?.secciones && (
-          <div className="report-ai-grid">
-            <article className="report-ai-block">
-              <h3>Resumen</h3>
-              <p>{ai.secciones.resumen || "—"}</p>
-            </article>
-            <article className="report-ai-block">
-              <h3>Qué significan los números</h3>
-              <p>{ai.secciones.numeros || "—"}</p>
-            </article>
-            <article className="report-ai-block report-ai-block--actions">
-              <h3>Qué hacer</h3>
-              {actions.length ? (
-                <ul>
-                  {actions.map((a) => (
-                    <li key={a}>{a}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>{ai.secciones.acciones || "—"}</p>
-              )}
-            </article>
-            {ai.secciones.frase && (
-              <article className="report-ai-block report-ai-block--quote">
-                <h3>En una frase</h3>
-                <p>{ai.secciones.frase}</p>
-              </article>
-            )}
+        {!aiLoading && !aiError && aiParagraphs.length > 0 && (
+          <div className="report-ai-prose">
+            {aiParagraphs.map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
           </div>
+        )}
+
+        {!aiLoading && !aiError && ai && aiParagraphs.length === 0 && (
+          <p className="report-ai-wait">La IA no devolvió texto útil. Puede reintentar recargando la página.</p>
         )}
       </section>
 
-      <section>
-        <h2 className="report-section-title">Indicadores de esta selección</h2>
-        <p className="section-help">
-          El IRA combina clima (50%), importancia del cultivo (30%) y vulnerabilidad económica (20%).
-          {topComponent
-            ? ` Hoy el componente más alto es ${topComponent.label}: ${componentPlain(topComponent.key)}`
-            : ""}
-        </p>
-        <div className="report-grid">
-          <div className="report-card">
-            <h3>Peligro climático (SPC)</h3>
-            <div className="value">{row.spc?.toFixed(3) ?? "—"}</div>
-            <div className="sub">{pct(row.spc)} · peso 50%</div>
-          </div>
-          <div className="report-card">
-            <h3>Exposición productiva (SEP)</h3>
-            <div className="value">{row.sep?.toFixed(3) ?? "—"}</div>
-            <div className="sub">{pct(row.sep)} · peso 30%</div>
-          </div>
-          <div className="report-card">
-            <h3>Vulnerabilidad económica (SVE)</h3>
-            <div className="value">{row.sve?.toFixed(3) ?? "—"}</div>
-            <div className="sub">{pct(row.sve)} · peso 20%</div>
-          </div>
-          <div className="report-card">
-            <h3>Rendimiento esperado</h3>
-            <div className="value">{fmtTon(row.rendimiento_predicho)}</div>
-            <div className="sub">
-              {row.rendimiento_ic_inf != null
-                ? `Rango 95%: ${row.rendimiento_ic_inf.toFixed(1)} – ${row.rendimiento_ic_sup.toFixed(1)} t/ha`
-                : "Sin predicción para este período"}
+      {isGeneral && general && (
+        <section>
+          <h2 className="report-section-title">Resumen del municipio</h2>
+          <p className="section-help">
+            Promedio del último período de cada cultivo. Es el mismo panorama de la pestaña General.
+          </p>
+          <div className="report-grid">
+            <div className="report-card">
+              <h3>Cultivos reportados</h3>
+              <div className="value">{general.totalCultivos}</div>
+            </div>
+            <div className="report-card">
+              <h3>IRA promedio</h3>
+              <div className="value">{general.avgIRA?.toFixed(3) ?? "—"}</div>
+              <div className="sub"><RiskBadge nivel={classifyIra(general.avgIRA)} /></div>
+            </div>
+            <div className="report-card">
+              <h3>SPC / SEP / SVE</h3>
+              <div className="value" style={{ fontSize: "1rem" }}>
+                {general.avgSpc?.toFixed(2) ?? "—"} / {general.avgSep?.toFixed(2) ?? "—"} / {general.avgSve?.toFixed(2) ?? "—"}
+              </div>
+              <div className="sub">Promedios entre cultivos</div>
+            </div>
+            <div className="report-card">
+              <h3>Rendimiento promedio</h3>
+              <div className="value">{fmtTon(general.avgRendimiento)}</div>
+              <div className="sub">
+                {general.cultivosConRendimiento
+                  ? `De ${general.cultivosConRendimiento} cultivo${general.cultivosConRendimiento === 1 ? "" : "s"} con predicción`
+                  : "Sin predicción en los períodos disponibles"}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section>
-        <h2 className="report-section-title">Lectura rápida</h2>
-        <table className="report-table">
-          <thead>
-            <tr>
-              <th>Indicador</th>
-              <th>Valor</th>
-              <th>En palabras simples</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Nivel IRA</td>
-              <td><RiskBadge nivel={row.ira_nivel} /></td>
-              <td>{riskPlain(row.ira_nivel)}</td>
-            </tr>
-            <tr>
-              <td>Anomalía</td>
-              <td>{row.anomaly_score != null ? row.anomaly_score.toFixed(2) : "—"}</td>
-              <td>{row.is_anomaly ? "Este caso se ve atípico frente a otros similares." : "Dentro de un rango esperado."}</td>
-            </tr>
-            <tr>
-              <td>Período</td>
-              <td>{periodLabel(row.periodo)}</td>
-              <td>Ventana de tiempo que alimenta estas cifras.</td>
-            </tr>
-            {row.rendimiento_nnet != null && (
+          <h2 className="report-section-title" style={{ marginTop: 28 }}>¿Cuántos cultivos hay en cada nivel?</h2>
+          <div className="report-grid">
+            {Object.entries(general.niveles).map(([nivel, count]) => (
+              <div key={nivel} className="report-card">
+                <h3><RiskBadge nivel={nivel} /></h3>
+                <div className="value">{count}</div>
+                <div className="sub">{count === 1 ? "cultivo" : "cultivos"}</div>
+              </div>
+            ))}
+          </div>
+
+          <h2 className="report-section-title" style={{ marginTop: 28 }}>Mayor riesgo</h2>
+          <table className="report-table">
+            <thead>
               <tr>
-                <td>Rendimiento (modelo avanzado)</td>
-                <td>{fmtTon(row.rendimiento_nnet)}</td>
-                <td>Otra estimación con inteligencia artificial.</td>
+                <th>#</th>
+                <th>Cultivo</th>
+                <th>IRA</th>
+                <th>Nivel</th>
+                <th>Período</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </section>
+            </thead>
+            <tbody>
+              {general.top3.map((d, i) => (
+                <tr key={d.cultivo}>
+                  <td>{i + 1}</td>
+                  <td>{d.cultivo}</td>
+                  <td>{d.ira_score?.toFixed(3) ?? "—"}</td>
+                  <td><RiskBadge nivel={d.ira_nivel} /></td>
+                  <td>{periodLabel(d.periodo)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <h2 className="report-section-title" style={{ marginTop: 28 }}>Menor riesgo</h2>
+          <table className="report-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Cultivo</th>
+                <th>IRA</th>
+                <th>Nivel</th>
+                <th>Período</th>
+              </tr>
+            </thead>
+            <tbody>
+              {general.bottom3.map((d, i) => (
+                <tr key={d.cultivo}>
+                  <td>{i + 1}</td>
+                  <td>{d.cultivo}</td>
+                  <td>{d.ira_score?.toFixed(3) ?? "—"}</td>
+                  <td><RiskBadge nivel={d.ira_nivel} /></td>
+                  <td>{periodLabel(d.periodo)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {!isGeneral && (
+        <>
+          <section>
+            <h2 className="report-section-title">Indicadores de esta selección</h2>
+            <p className="section-help">
+              El IRA combina clima (50%), importancia del cultivo (30%) y vulnerabilidad económica (20%).
+              {topComponent
+                ? ` Hoy el componente más alto es ${topComponent.label}: ${componentPlain(topComponent.key)}`
+                : ""}
+            </p>
+            <div className="report-grid">
+              <div className="report-card">
+                <h3>Peligro climático (SPC)</h3>
+                <div className="value">{row.spc?.toFixed(3) ?? "—"}</div>
+                <div className="sub">{pct(row.spc)} · peso 50%</div>
+              </div>
+              <div className="report-card">
+                <h3>Exposición productiva (SEP)</h3>
+                <div className="value">{row.sep?.toFixed(3) ?? "—"}</div>
+                <div className="sub">{pct(row.sep)} · peso 30%</div>
+              </div>
+              <div className="report-card">
+                <h3>Vulnerabilidad económica (SVE)</h3>
+                <div className="value">{row.sve?.toFixed(3) ?? "—"}</div>
+                <div className="sub">{pct(row.sve)} · peso 20%</div>
+              </div>
+              <div className="report-card">
+                <h3>Rendimiento esperado</h3>
+                <div className="value">{fmtTon(row.rendimiento_predicho)}</div>
+                <div className="sub">
+                  {row.rendimiento_ic_inf != null
+                    ? `Rango 95%: ${row.rendimiento_ic_inf.toFixed(1)} – ${row.rendimiento_ic_sup.toFixed(1)} t/ha`
+                    : "Sin predicción para este período"}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="report-section-title">Lectura rápida</h2>
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th>Indicador</th>
+                  <th>Valor</th>
+                  <th>En palabras simples</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Nivel IRA</td>
+                  <td><RiskBadge nivel={row.ira_nivel} /></td>
+                  <td>{riskPlain(row.ira_nivel)}</td>
+                </tr>
+                <tr>
+                  <td>Anomalía</td>
+                  <td>{row.anomaly_score != null ? row.anomaly_score.toFixed(2) : "—"}</td>
+                  <td>{row.is_anomaly ? "Este caso se ve atípico frente a otros similares." : "Dentro de un rango esperado."}</td>
+                </tr>
+                <tr>
+                  <td>Período</td>
+                  <td>{periodLabel(row.periodo)}</td>
+                  <td>Ventana de tiempo que alimenta estas cifras.</td>
+                </tr>
+                {row.rendimiento_nnet != null && (
+                  <tr>
+                    <td>Rendimiento (modelo avanzado)</td>
+                    <td>{fmtTon(row.rendimiento_nnet)}</td>
+                    <td>Otra estimación con inteligencia artificial.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </section>
+        </>
+      )}
 
       {defor && (
         <section>

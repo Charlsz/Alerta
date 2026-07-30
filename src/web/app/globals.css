@@ -912,6 +912,18 @@ a:hover { text-decoration: underline; }
 
 .report-ai-error { display: grid; gap: 6px; }
 
+.report-ai-prose {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.report-ai-prose p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: var(--text);
+}
+
 .report-ai-grid { display: grid; gap: 12px; }
 
 .report-ai-block {

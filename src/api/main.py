@@ -531,23 +531,9 @@ Sé conciso (máximo 3 párrafos). Si no sabes algo, dilo honestamente."""
 
 @app.post("/api/municipio/{codigo}/reporte")
 def generar_reporte(codigo: str, body: dict = None):
-    """Genera un reporte ejecutivo estructurado (texto plano) con OpenRouter.
-
-    El frontend lo usa para la página imprimible/PDF. Devuelve secciones claras
-    en lenguaje sencillo, alineadas al cultivo/período seleccionado.
-    """
+    """Análisis IA del PDF: reutiliza exactamente el mismo algoritmo que Asistente IA (chat)."""
     if body is None:
         body = {}
-
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        return JSONResponse(
-            {
-                "error": "missing_key",
-                "message": "Falta OPENROUTER_API_KEY. El reporte numérico sí se puede ver; el análisis con IA no.",
-            },
-            status_code=503,
-        )
 
     cultivo = body.get("cultivo")
     periodo = body.get("periodo")
@@ -557,157 +543,62 @@ def generar_reporte(codigo: str, body: dict = None):
     if scope == "cultivo" and not cultivo:
         scope = "general"
 
-    con = _con()
-    if not table_exists(con, "ira_resultados"):
-        con.close()
-        return JSONResponse({"error": "no_data", "message": "No hay resultados del IRA."}, status_code=404)
-
-    rows = _ira_rows(con, codigo, cultivo=cultivo if scope == "cultivo" else None)
-    ndvi = _ndvi_serie(con, codigo)
-    defor = _deforestacion_resumen(_deforestacion_fila(con, codigo))
-    con.close()
-
-    if not rows:
-        return JSONResponse(
-            {"error": "no_data", "message": "No hay datos para este municipio/cultivo."},
-            status_code=404,
-        )
-
+    # Misma pregunta que haría un usuario en la tarjeta — el modelo ya responde bien así.
     if scope == "general":
-        ctx = _contexto_general(rows)
-        alcance = "Vista GENERAL del municipio (todos los cultivos, último período de cada uno)."
+        question = (
+            "Hazme un resumen claro del riesgo agrícola de este municipio: "
+            "qué está pasando, qué significan los números principales y qué conviene hacer."
+        )
     else:
-        ctx = _contexto_cultivo(rows, periodo)
-        if ctx is None:
-            return JSONResponse(
-                {"error": "no_data", "message": f"No hay datos del cultivo {cultivo}."},
-                status_code=404,
-            )
-        alcance = f"Vista de cultivo {ctx['cultivo']} en período {ctx['periodo_seleccionado']}."
-
-    contexto = {
-        "municipio": rows[0].get("nombre_municipio") or codigo,
-        "departamento": rows[0].get("nombre_departamento"),
-        **ctx,
-    }
-    if ndvi:
-        contexto["ndvi_satelital"] = {"actual": ndvi[0], "serie_reciente": ndvi[:6]}
-    if defor:
-        contexto["deforestacion"] = defor
-
-    system_prompt = f"""Eres un analista de riesgo agrícola para Colombia. Escribes para agricultores, técnicos y alcaldías.
-Usa español claro. Puedes usar términos técnicos (IRA, SPC, SEP, SVE) si los explicas en la misma frase.
-No uses markdown, asteriscos, numeración con #, ni emojis. Solo texto plano.
-
-{_CHAT_INDICADORES}
-
-ALCANCE: {alcance}
-Usa SOLO las cifras del CONTEXTO. No inventes datos.
-
-Devuelve EXACTAMENTE estas 4 secciones, con estos títulos en mayúsculas y una línea en blanco entre secciones:
-
-RESUMEN
-(2 a 4 oraciones: qué está pasando, nivel de riesgo y por qué importa ahora)
-
-QUE SIGNIFICAN LOS NUMEROS
-(explica IRA y el componente más alto entre SPC/SEP/SVE, en palabras simples; 3 a 5 oraciones)
-
-QUE HACER
-(3 recomendaciones prácticas y concretas, cada una en una oración que empiece con un verbo: Revisar..., Preparar..., Consultar...)
-
-EN UNA FRASE
-(una sola oración que alguien pueda leer en voz alta en una reunión)"""
-
-    try:
-        resp = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "nvidia/nemotron-3-super-120b-a12b:free",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {
-                        "role": "user",
-                        "content": (
-                            "CONTEXTO (datos reales de la selección):\n"
-                            f"{json.dumps(contexto, ensure_ascii=False, default=str)}\n\n"
-                            "Escribe el reporte con las 4 secciones pedidas. Sin prefacios."
-                        ),
-                    },
-                ],
-                "temperature": 0.35,
-                "max_tokens": 900,
-            },
-            timeout=60,
-        )
-        resp.raise_for_status()
-        texto = resp.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        return JSONResponse(
-            {"error": "llm_error", "message": f"No se pudo generar el análisis: {str(e)[:200]}"},
-            status_code=502,
+        question = (
+            "Hazme un resumen claro del riesgo de este cultivo en el período seleccionado: "
+            "qué está pasando, qué significan los números principales y qué conviene hacer."
         )
 
-    secciones = _parse_reporte_secciones(texto)
-    return {
-        "municipio": contexto.get("municipio"),
-        "departamento": contexto.get("departamento"),
+    chat_body = {
+        "question": question,
         "scope": scope,
         "cultivo": cultivo if scope == "cultivo" else None,
-        "periodo": (ctx.get("periodo_seleccionado") if scope == "cultivo" else None),
-        "texto": texto,
-        "secciones": secciones,
+        "periodo": periodo if scope == "cultivo" else None,
+    }
+    result = chat_municipio(codigo, chat_body)
+
+    # chat_municipio puede devolver JSONResponse (503) o dict
+    if isinstance(result, JSONResponse):
+        try:
+            payload = json.loads(result.body.decode("utf-8"))
+        except Exception:
+            payload = {"answer": "El asistente no está disponible."}
+        status = result.status_code
+        answer = (payload.get("answer") or "").strip()
+        if status >= 400:
+            return JSONResponse(
+                {
+                    "error": "missing_key" if status == 503 else "llm_error",
+                    "message": answer or "No se pudo generar el análisis con IA.",
+                },
+                status_code=status,
+            )
+    else:
+        answer = (result.get("answer") or "").strip()
+
+    if not answer or answer.startswith("Error al contactar"):
+        return JSONResponse(
+            {"error": "llm_error", "message": answer or "No se pudo generar el análisis con IA."},
+            status_code=502,
+        )
+    if answer.startswith("Todavía no hay") or answer.startswith("No hay datos"):
+        return JSONResponse({"error": "no_data", "message": answer}, status_code=404)
+
+    return {
+        "municipio": None,
+        "departamento": None,
+        "scope": scope,
+        "cultivo": cultivo if scope == "cultivo" else None,
+        "periodo": periodo if scope == "cultivo" else None,
+        "texto": answer,
         "generado_en": datetime.utcnow().isoformat() + "Z",
     }
-
-
-def _parse_reporte_secciones(texto: str) -> dict:
-    """Divide el texto del modelo en secciones conocidas."""
-    keys = {
-        "RESUMEN": "resumen",
-        "QUE SIGNIFICAN LOS NUMEROS": "numeros",
-        "QUÉ SIGNIFICAN LOS NÚMEROS": "numeros",
-        "QUE HACER": "acciones",
-        "QUÉ HACER": "acciones",
-        "EN UNA FRASE": "frase",
-    }
-    out = {"resumen": "", "numeros": "", "acciones": "", "frase": ""}
-    if not texto:
-        return out
-
-    # Normaliza títulos raros del modelo
-    normalized = texto.replace("\r\n", "\n")
-    current = None
-    buf: list[str] = []
-
-    def flush():
-        nonlocal buf, current
-        if current and buf:
-            out[current] = "\n".join(buf).strip()
-        buf = []
-
-    for line in normalized.split("\n"):
-        raw = line.strip()
-        upper = raw.upper().rstrip(":")
-        matched = None
-        for title, key in keys.items():
-            if upper == title or upper.startswith(title):
-                matched = key
-                break
-        if matched:
-            flush()
-            current = matched
-            continue
-        if current is not None:
-            buf.append(line)
-    flush()
-
-    if not any(out.values()):
-        out["resumen"] = texto.strip()
-    return out
 
 
 def _fila_promedio(rows: list[dict]) -> dict:

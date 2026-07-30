@@ -364,6 +364,18 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
               </div>
             ))}
           </div>
+
+          <div style={{ marginTop: 12, textAlign: "right" }}>
+            <a
+              href={`/reporte/${codigo}`}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn--ghost"
+              style={{ fontSize: "0.8125rem" }}
+            >
+              Reporte PDF · vista general →
+            </a>
+          </div>
         </>
       )}
 
