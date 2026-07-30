@@ -22,9 +22,15 @@ risk:  ## Calcula IRA, anomalías y explicabilidad
 
 pipeline: ingest features risk  ## Corre el pipeline completo end-to-end
 
+serving-db:  ## Exporta DuckDB chica (~6MB) para clones / Spaces
+	python scripts/export_serving_db.py
+
+refresh-gfw:  ## Re-descarga GFW (si hay key) y rebuild deforestación en serving DB
+	python scripts/refresh_live.py gfw --force
+
 # ── Servicios ─────────────────────────────────────────────────────────────────
 api:  ## Inicia la API FastAPI en modo desarrollo
-	uvicorn src.api.main:app --reload --port 8000
+	ALERTA_DUCKDB_PATH=$${ALERTA_DUCKDB_PATH:-data/alerta_serving.duckdb} uvicorn src.api.main:app --reload --port 8000
 
 web:  ## Inicia el frontend Next.js en modo desarrollo
 	cd src/web && npm run dev

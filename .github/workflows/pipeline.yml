@@ -14,8 +14,35 @@ jobs:
           python-version: "3.14"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: make pipeline
+      - name: Full pipeline
+        env:
+          GFW_API_KEY: ${{ secrets.GFW_API_KEY }}
+          SODA_APP_TOKEN: ${{ secrets.SODA_APP_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: make pipeline
+      - name: Export serving DuckDB (~6MB)
+        run: python scripts/export_serving_db.py
       - uses: actions/upload-artifact@v4
         with:
-          name: alerta-duckdb
-          path: data/alerta.duckdb
+          name: alerta-serving-duckdb
+          path: data/alerta_serving.duckdb
+      - name: Upload serving DB to Hugging Face Hub (optional)
+        if: ${{ secrets.HF_TOKEN && secrets.HF_DATASET_REPO }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_DATASET_REPO: ${{ secrets.HF_DATASET_REPO }}
+        run: |
+          pip install -q huggingface_hub
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          repo = os.environ["HF_DATASET_REPO"]
+          api.upload_file(
+              path_or_fileobj="data/alerta_serving.duckdb",
+              path_in_repo="alerta_serving.duckdb",
+              repo_id=repo,
+              repo_type="dataset",
+          )
+          print("uploaded to", repo)
+          PY

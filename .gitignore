@@ -44,8 +44,17 @@ data/raw/*
 data/alerta.duckdb
 data/alerta.db
 data/warehouse.db
+data/alerta_serving.bak.duckdb
+data/alerta_serving.refresh.duckdb
+data/alerta_serving.tmp.duckdb
+data/alerta_serving.download.duckdb
+data/.last_gfw_refresh.json
 data/models/
-!data/raw/raw_gfw_subnational_2_*.json
+# GFW deforestation JSON used by the pipeline (committed so clones work without GFW_API_KEY)
+!data/raw/raw_gfw_subnational_2_tree_cover_loss.json
+!data/raw/raw_gfw_subnational_2_primary_loss.json
+# Small serving DB (~6MB) so clones/Spaces can run the app without the 800MB warehouse
+!data/alerta_serving.duckdb
 !data/samples/
 !data/samples/**
 

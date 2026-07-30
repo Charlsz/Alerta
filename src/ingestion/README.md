@@ -161,11 +161,11 @@ Cada script es independiente, idempotente y expone `run(force=False)` para el or
 
 ### `gfw_deforestacion.py` — Pérdida de cobertura arbórea GFW/Hansen
 
-**Qué hace:** Descarga datos de deforestación (pérdida de cobertura arbórea, bosque primario y drivers) por municipio (subnational 2) para Colombia desde la GFW Data API v2. Guarda 3 archivos JSON en `data/raw/`.
+**Qué hace:** Asegura los JSON de deforestación (pérdida de cobertura arbórea y bosque primario) por municipio en `data/raw/`. Esos dos archivos **vienen en el repo**; tras un clone el paso no descarga nada.
 
-**Cómo lo hace:** Consulta la API REST de GFW (`data-api.globalforestwatch.org`) con SQL tipo GeoDB. Requiere `GFW_API_KEY` en `.env`. Como alternativa local, los archivos JSON pueden colocarse manualmente en `data/raw/`.
+**Cómo lo hace:** Si faltan archivos (o se usa `--force`) y hay `GFW_API_KEY`, consulta la API REST de GFW. Sin clave y con los JSON presentes, el paso termina en silencio.
 
-**Por qué así:** GFW es la fuente global estándar para monitoreo de bosques. La API v2 requiere autenticación pero ofrece datos a nivel subnational 2 que no están disponibles en descarga pública directa.
+**Por qué así:** Un clone no debería depender de pedir una API key solo para ver deforestación. La clave queda solo para actualizar datos.
 
 ---
 
