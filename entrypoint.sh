@@ -14,9 +14,16 @@ bootstrap_duckdb()
 print("bootstrap ok:", __import__("config").config.duckdb_path)
 PY
 
-# Hugging Face Spaces exposes $PORT (often 7860). Next.js proxies /api → API on 8000.
+# Hugging Face Spaces exposes $PORT (usually 7860). Next.js proxies /api → API on 8000.
 API_PORT="${API_PORT:-8000}"
-WEB_PORT="${PORT:-${WEB_PORT:-3000}}"
+if [ -n "${SPACE_ID:-}" ]; then
+  # Spaces health-check expects the public web process on $PORT / app_port (7860).
+  WEB_PORT="${PORT:-7860}"
+else
+  WEB_PORT="${PORT:-${WEB_PORT:-3000}}"
+fi
+
+echo "starting API :${API_PORT}  web :${WEB_PORT} (SPACE_ID=${SPACE_ID:-none})"
 
 uvicorn src.api.main:app --host 0.0.0.0 --port "$API_PORT" &
 API_PID=$!

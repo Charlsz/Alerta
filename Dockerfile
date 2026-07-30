@@ -24,7 +24,7 @@ ENV ALERTA_DUCKDB_PATH=data/alerta_serving.duckdb
 ENV ALERTA_LIVE_REFRESH=1
 ENV ALERTA_GFW_REFRESH_HOURS=168
 
-EXPOSE 8000 3000
+EXPOSE 7860 8000
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 CMD ["/entrypoint.sh"]
