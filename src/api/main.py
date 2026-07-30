@@ -7,6 +7,9 @@ Endpoints:
     GET  /api/municipio/{codigo} — detalle por municipio y cultivo
     POST /api/municipio/{codigo}/chat — chatbot con LLM sobre el municipio
     GET  /api/municipio/{codigo}/multiagent — análisis multi-agente
+
+`chat` y `multiagent` reciben el alcance de la vista abierta en el frontend
+(`scope`: general | cultivo, más `cultivo` y `periodo`) y solo analizan esos datos.
     GET  /api/municipio/{codigo}/ndvi — serie temporal NDVI desde satélite
     GET  /api/municipio/{codigo}/deforestacion — datos de deforestación
 """
@@ -45,6 +48,125 @@ def _con():
     con = duckdb.connect(config.duckdb_path)
     con.execute("INSTALL spatial; LOAD spatial;")
     return con
+
+
+_IRA_SELECT = """
+    SELECT r.*, m.nombre_municipio, m.nombre_departamento
+    FROM ira_resultados r
+    LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m ON r.codigo_municipio = m.codigo_municipio
+"""
+
+
+def _ira_rows(con, codigo: str, cultivo: str = None, periodo: str = None, limit: int = None):
+    """Filas de ira_resultados de un municipio, de la más reciente a la más antigua.
+
+    `periodo` se compara por prefijo de fecha (10 caracteres) para aceptar tanto
+    '2023-01-01' como '2023-01-01T00:00:00', que es lo que puede enviar el frontend.
+    """
+    where = ["r.codigo_municipio = ?"]
+    params = [codigo]
+    if cultivo:
+        where.append("r.cultivo = ?")
+        params.append(cultivo)
+    if periodo:
+        where.append("CAST(r.periodo AS VARCHAR) LIKE ?")
+        params.append(f"{str(periodo)[:10]}%")
+    sql = f"{_IRA_SELECT} WHERE {' AND '.join(where)} ORDER BY r.periodo DESC"
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+    return [dict(zip(_IRA_COLUMNS, r)) for r in con.execute(sql, params).fetchall()]
+
+
+def _top3(row: dict):
+    """importancia_top3 se guarda como JSON en texto; devolverlo ya parseado."""
+    v = row.get("importancia_top3")
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except Exception:
+            return None
+    return v
+
+
+def _fila_resumen(row: dict) -> dict:
+    """Los campos de una fila (cultivo × período) que la tarjeta muestra en pantalla."""
+    return {
+        "cultivo": row.get("cultivo"),
+        "periodo": str(row.get("periodo"))[:10],
+        "ira_score": row.get("ira_score"),
+        "ira_nivel": row.get("ira_nivel"),
+        "spc": row.get("spc"),
+        "sep": row.get("sep"),
+        "sve": row.get("sve"),
+        "rendimiento_predicho": row.get("rendimiento_predicho"),
+        "anomaly_score": row.get("anomaly_score"),
+    }
+
+
+def _ultima_por_cultivo(rows: list[dict]) -> list[dict]:
+    """Última fila de cada cultivo, ordenada por IRA desc.
+
+    Es la misma lista que la tarjeta usa para las pestañas de cultivo y para la vista General.
+    """
+    latest: dict[str, dict] = {}
+    for r in rows:
+        c = r.get("cultivo")
+        if c not in latest or str(r.get("periodo")) > str(latest[c].get("periodo")):
+            latest[c] = r
+    return sorted(latest.values(), key=lambda r: r.get("ira_score") or 0, reverse=True)
+
+
+def _periodo_por_defecto(rows: list[dict]) -> dict | None:
+    """Fila que la tarjeta muestra por defecto: el período más reciente con rendimiento;
+    si ninguno tiene rendimiento, simplemente el más reciente."""
+    if not rows:
+        return None
+    con_datos = [r for r in rows if r.get("rendimiento_predicho") is not None]
+    return max(con_datos or rows, key=lambda r: str(r.get("periodo")))
+
+
+def _ndvi_serie(con, codigo: str) -> list[dict] | None:
+    if not table_exists(con, "features_ndvi"):
+        return None
+    rows = con.execute("""
+        SELECT periodo, ndvi_media_30d, ndvi_anomalia_30d
+        FROM features_ndvi
+        WHERE codigo_municipio = ?
+        ORDER BY periodo DESC
+    """, [codigo]).fetchall()
+    return [{"periodo": str(r[0]), "ndvi": r[1], "anomalia": r[2]} for r in rows]
+
+
+def _deforestacion_fila(con, codigo: str) -> dict | None:
+    if not table_exists(con, "features_deforestacion"):
+        return None
+    columns = [r[0] for r in con.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='features_deforestacion' ORDER BY ordinal_position"
+    ).fetchall()]
+    rows = con.execute(f"""
+        SELECT {', '.join(columns)}
+        FROM features_deforestacion
+        WHERE codigo_municipio = ?
+    """, [codigo]).fetchall()
+    return dict(zip(columns, rows[0])) if rows else None
+
+
+def _deforestacion_resumen(d: dict | None) -> dict | None:
+    """Solo las cuatro cifras de deforestación que se ven en la tarjeta."""
+    if not d:
+        return None
+    ultimo = next(
+        ((k, v) for k, v in d.items()
+         if k.startswith("deforestacion_") and not any(x in k for x in ("total", "promedio", "tendencia"))),
+        None,
+    )
+    return {
+        "ultimo_anio_columna": ultimo[0] if ultimo else None,
+        "ultimo_anio_ha": ultimo[1] if ultimo else None,
+        "total_5_anios_ha": d.get("deforestacion_total_5y"),
+        "total_10_anios_ha": d.get("deforestacion_total_10y"),
+        "tendencia": d.get("deforestacion_tendencia_label"),
+    }
 
 
 
@@ -162,27 +284,73 @@ def get_municipio(codigo: str, cultivo: str = None, periodo: str = None):
     if not table_exists(con, "ira_resultados"):
         con.close()
         return {"error": "no data"}
-
-    where = ["r.codigo_municipio = ?"]
-    params = [codigo]
-    if cultivo:
-        where.append("r.cultivo = ?")
-        params.append(cultivo)
-    if periodo:
-        where.append("r.periodo = ?")
-        params.append(periodo)
-    clause = " AND ".join(where)
-
-    rows = con.execute(f"""
-        SELECT r.*, m.nombre_municipio, m.nombre_departamento
-        FROM ira_resultados r
-        LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m ON r.codigo_municipio = m.codigo_municipio
-        WHERE {clause}
-        ORDER BY r.periodo DESC
-    """, params).fetchall()
-
+    rows = _ira_rows(con, codigo, cultivo=cultivo, periodo=periodo)
     con.close()
-    return {"data": [dict(zip(_IRA_COLUMNS, r)) for r in rows]}
+    return {"data": rows}
+
+
+def _contexto_general(rows: list[dict]) -> dict:
+    """Réplica de la vista General de la tarjeta: un cultivo por fila, con su último período."""
+    ultimas = _ultima_por_cultivo(rows)
+    scores = [r["ira_score"] for r in ultimas if r.get("ira_score") is not None]
+    niveles: dict[str, int] = {}
+    for r in ultimas:
+        n = r.get("ira_nivel") or "Sin dato"
+        niveles[n] = niveles.get(n, 0) + 1
+    return {
+        "vista": "general",
+        "que_muestra": (
+            "Resumen del municipio: todos los cultivos reportados, cada uno con su último "
+            "período disponible. No hay un cultivo ni un período seleccionado."
+        ),
+        "total_cultivos": len(ultimas),
+        "ira_promedio": round(sum(scores) / len(scores), 4) if scores else None,
+        "distribucion_niveles": niveles,
+        "mayor_riesgo": [_fila_resumen(r) for r in ultimas[:3]],
+        "menor_riesgo": [_fila_resumen(r) for r in list(reversed(ultimas))[:3]],
+        "cultivos": [_fila_resumen(r) for r in ultimas],
+    }
+
+
+def _contexto_cultivo(rows_cultivo: list[dict], periodo: str = None) -> dict | None:
+    """Réplica de la vista de detalle: un solo cultivo en un solo período.
+
+    `rows_cultivo` son todas las filas de ese cultivo (todos los períodos); el histórico
+    va aparte y marcado como referencia para que el modelo no lo mezcle con el período elegido.
+    """
+    foco = None
+    if periodo:
+        pref = str(periodo)[:10]
+        foco = next((r for r in rows_cultivo if str(r.get("periodo"))[:10] == pref), None)
+    if foco is None:
+        foco = _periodo_por_defecto(rows_cultivo)
+    if foco is None:
+        return None
+
+    detalle = _fila_resumen(foco)
+    detalle.update({
+        "rendimiento_ic_inf": foco.get("rendimiento_ic_inf"),
+        "rendimiento_ic_sup": foco.get("rendimiento_ic_sup"),
+        "rendimiento_nnet": foco.get("rendimiento_nnet"),
+        "is_anomaly": foco.get("is_anomaly"),
+        "importancia_top3": _top3(foco),
+    })
+    return {
+        "vista": "cultivo",
+        "que_muestra": f"Detalle del cultivo {foco.get('cultivo')} en el período {detalle['periodo']}.",
+        "cultivo": foco.get("cultivo"),
+        "periodo_seleccionado": detalle["periodo"],
+        "datos_del_periodo": detalle,
+        "historial_del_cultivo": [_fila_resumen(r) for r in rows_cultivo[:24]],
+    }
+
+
+_CHAT_INDICADORES = """INDICADORES:
+- IRA (Índice de Riesgo Agrícola): 0-1, compuesto por SPC (peligro climático, peso 50%), SEP (exposición productiva, peso 30%), SVE (vulnerabilidad económica, peso 20%).
+- Niveles: Bajo (<0.25), Medio (0.25-0.50), Alto (0.50-0.75), Crítico (>0.75).
+- Anomalía (0-1): qué tan atípico es el municipio respecto a su historial (IsolationForest).
+- Rendimiento predicho (t/ha): estimación del próximo rendimiento del cultivo con intervalo de confianza del 95%.
+- Importancia top 3: variables que más influyen en el rendimiento predicho."""
 
 
 @app.post("/api/municipio/{codigo}/chat")
@@ -199,51 +367,70 @@ def chat_municipio(codigo: str, body: dict = None):
 
     cultivo = body.get("cultivo")
     periodo = body.get("periodo")
+    # La vista que el usuario tiene abierta. Si no llega, se deduce del cultivo (compatibilidad).
+    scope = str(body.get("scope") or ("cultivo" if cultivo else "general")).lower()
+    if scope not in ("general", "cultivo"):
+        scope = "cultivo" if cultivo else "general"
+    if scope == "cultivo" and not cultivo:
+        scope = "general"
 
-    # fetch municipio data — filtered by cultivo/periodo if provided
+    # El contexto se arma con los mismos datos que la tarjeta tiene en pantalla:
+    # en General, un cultivo por fila con su último período; en detalle, solo ese cultivo y período.
     con = _con()
-    where = ["r.codigo_municipio = ?"]
-    params = [codigo]
-    if cultivo:
-        where.append("r.cultivo = ?")
-        params.append(cultivo)
-    if periodo:
-        where.append("r.periodo = ?")
-        params.append(periodo)
-    clause = " AND ".join(where)
-    rows = con.execute(f"""
-        SELECT r.*, m.nombre_municipio, m.nombre_departamento
-        FROM ira_resultados r
-        LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m ON r.codigo_municipio = m.codigo_municipio
-        WHERE {clause}
-        ORDER BY r.periodo DESC
-        LIMIT 30
-    """, params).fetchall()
+    if not table_exists(con, "ira_resultados"):
+        con.close()
+        return {"answer": "Todavía no hay resultados del IRA cargados."}
+    rows = _ira_rows(con, codigo, cultivo=cultivo if scope == "cultivo" else None)
+    ndvi = _ndvi_serie(con, codigo)
+    defor = _deforestacion_resumen(_deforestacion_fila(con, codigo))
     con.close()
 
     if not rows:
+        if scope == "cultivo":
+            return {"answer": f"No hay datos del cultivo {cultivo} en este municipio."}
         return {"answer": "No hay datos disponibles para este municipio."}
 
-    data = [dict(zip(_IRA_COLUMNS, r)) for r in rows]
+    if scope == "general":
+        ctx = _contexto_general(rows)
+        alcance = (
+            "La vista actual es GENERAL: el resumen de todos los cultivos del municipio, cada uno "
+            "con su último período disponible. Habla del municipio como conjunto, usando el IRA "
+            "promedio, la distribución de niveles y los cultivos de mayor y menor riesgo. "
+            "Si preguntan por un cultivo puntual, usa solo la fila de ese cultivo que está en el contexto."
+        )
+    else:
+        ctx = _contexto_cultivo(rows, periodo)
+        if ctx is None:
+            return {"answer": f"No hay datos del cultivo {cultivo} en este municipio."}
+        alcance = (
+            f"La vista actual es el cultivo {ctx['cultivo']} en el período {ctx['periodo_seleccionado']}. "
+            "Analiza únicamente ese cultivo y ese período: las cifras que debes usar son las de "
+            "datos_del_periodo. No hables de otros cultivos del municipio. El historial de otros "
+            "períodos está solo como referencia y se usa únicamente si preguntan por la evolución en el tiempo."
+        )
 
-    scope = f"municipio"
-    if cultivo and periodo:
-        scope = f"cultivo {cultivo} (período {periodo}) en el municipio"
-    elif cultivo:
-        scope = f"cultivo {cultivo} en el municipio"
+    contexto = {
+        "municipio": rows[0].get("nombre_municipio") or codigo,
+        "departamento": rows[0].get("nombre_departamento"),
+        **ctx,
+    }
+    if ndvi:
+        contexto["ndvi_satelital"] = {"actual": ndvi[0], "serie_reciente": ndvi[:6]}
+    if defor:
+        contexto["deforestacion"] = defor
 
-    system_prompt = """Eres un asistente experto en riesgo climático agrícola para Colombia. Habla en lenguaje claro y sencillo como para un agricultor. No uses formato markdown, ni viñetas, ni guiones, ni asteriscos. Solo texto plano con puntos y comas.
+    system_prompt = f"""Eres un asistente experto en riesgo climático agrícola para Colombia. Habla en lenguaje claro y sencillo como para un agricultor. No uses formato markdown, ni viñetas, ni guiones, ni asteriscos. Solo texto plano con puntos y comas.
 
 REGLA IMPORTANTE: No expliques tu razonamiento ni muestres tu proceso de análisis. Responde ÚNICAMENTE el texto final del análisis, sin prefacios, sin introducciones como "El usuario quiere...", sin "Basado en los datos...". Empieza directamente con la respuesta.
 
-INDICADORES:
-- IRA (Índice de Riesgo Agrícola): 0-1, compuesto por SPC (peligro climático, peso 50%), SEP (exposición productiva, peso 30%), SVE (vulnerabilidad económica, peso 20%).
-- Niveles: Bajo (<0.25), Medio (0.25-0.50), Alto (0.50-0.75), Crítico (>0.75).
-- Anomalía (0-1): qué tan atípico es el municipio respecto a su historial (IsolationForest).
-- Rendimiento predicho (t/ha): estimación del próximo rendimiento del cultivo con intervalo de confianza del 95%.
-- Importancia top 3: variables que más influyen en el rendimiento predicho.
+{_CHAT_INDICADORES}
 
-Usa los datos del {scope} para responder. Sé conciso (máximo 3 párrafos). Si no sabes algo, dilo honestamente."""
+ALCANCE DE LA RESPUESTA (obligatorio):
+- {alcance}
+- Usa exclusivamente las cifras del bloque CONTEXTO: es exactamente lo que el usuario está viendo en pantalla. No inventes ni estimes valores que no estén ahí.
+- Si preguntan por un cultivo, un período o un municipio que no aparece en el CONTEXTO, dilo y sugiere seleccionarlo en la tarjeta.
+
+Sé conciso (máximo 3 párrafos). Si no sabes algo, dilo honestamente."""
 
     # ponytail: single prompt call, no streaming for now.
     # Add streaming when latency becomes an issue.
@@ -258,7 +445,7 @@ Usa los datos del {scope} para responder. Sé conciso (máximo 3 párrafos). Si 
                 "model": "nvidia/nemotron-3-super-120b-a12b:free",
                 "messages": [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Datos del {scope}:\n{json.dumps(data, ensure_ascii=False, default=str)}\n\nPregunta: {question}\n\nIMPORTANTE: No expliques tu razonamiento ni describas los datos. Escribe UNICAMENTE la respuesta final, sin prefacios."},
+                    {"role": "user", "content": f"CONTEXTO (lo que el usuario está viendo en pantalla):\n{json.dumps(contexto, ensure_ascii=False, default=str)}\n\nPregunta: {question}\n\nIMPORTANTE: No expliques tu razonamiento ni describas los datos. Escribe UNICAMENTE la respuesta final, sin prefacios."},
                 ],
                 "temperature": 0.3,
                 "max_tokens": 600,
@@ -272,41 +459,62 @@ Usa los datos del {scope} para responder. Sé conciso (máximo 3 párrafos). Si 
         return {"answer": f"Error al contactar el modelo: {str(e)[:200]}"}
 
 
+def _fila_promedio(rows: list[dict]) -> dict:
+    """Fila sintética con el promedio de los sub-índices — el equivalente al IRA promedio
+    que muestra la vista General, para que los agentes analicen el municipio y no un cultivo al azar."""
+    def prom(campo):
+        vals = [r.get(campo) for r in rows if r.get(campo) is not None]
+        return sum(vals) / len(vals) if vals else None
+
+    return {
+        "cultivo": "los cultivos del municipio",
+        "periodo": max((str(r.get("periodo")) for r in rows), default="")[:10],
+        "spc": prom("spc"),
+        "sep": prom("sep"),
+        "sve": prom("sve"),
+        "ira_score": prom("ira_score"),
+        "rendimiento_predicho": prom("rendimiento_predicho"),
+        "nombre_municipio": rows[0].get("nombre_municipio"),
+        "nombre_departamento": rows[0].get("nombre_departamento"),
+    }
+
+
 @app.get("/api/municipio/{codigo}/multiagent")
-def multiagent_municipio(codigo: str, cultivo: str = None, periodo: str = None):
-    """Análisis multi-agente del municipio, opcionalmente filtrado por cultivo/período."""
+def multiagent_municipio(codigo: str, cultivo: str = None, periodo: str = None, scope: str = None):
+    """Análisis multi-agente sobre lo que está en pantalla.
+
+    scope=general → promedio de los últimos períodos de todos los cultivos;
+    scope=cultivo → solo el cultivo y período seleccionados.
+    """
     con = _con()
     if not table_exists(con, "ira_resultados"):
         con.close()
         return {"error": "no data"}
 
-    where = ["r.codigo_municipio = ?"]
-    params = [codigo]
-    if cultivo:
-        where.append("r.cultivo = ?")
-        params.append(cultivo)
-    if periodo:
-        where.append("r.periodo = ?")
-        params.append(periodo)
-    clause = " AND ".join(where)
+    scope = (scope or ("cultivo" if cultivo else "general")).lower()
+    if scope != "general" and not cultivo:
+        scope = "general"
 
-    rows = con.execute(f"""
-        SELECT r.*, m.nombre_municipio, m.nombre_departamento
-        FROM ira_resultados r
-        LEFT JOIN (SELECT DISTINCT codigo_municipio, nombre_municipio, nombre_departamento FROM estaciones_municipio WHERE codigo_municipio IS NOT NULL) m ON r.codigo_municipio = m.codigo_municipio
-        WHERE {clause}
-        ORDER BY r.periodo DESC
-        LIMIT 30
-    """, params).fetchall()
+    rows = _ira_rows(con, codigo, cultivo=cultivo if scope == "cultivo" else None)
     con.close()
 
     if not rows:
         return {"error": "no data"}
 
-    row = dict(zip(_IRA_COLUMNS, rows[0]))
+    if scope == "general":
+        row = _fila_promedio(_ultima_por_cultivo(rows))
+    else:
+        row = None
+        if periodo:
+            pref = str(periodo)[:10]
+            row = next((r for r in rows if str(r.get("periodo"))[:10] == pref), None)
+        row = row or _periodo_por_defecto(rows)
 
     from src.risk.multi_agent import analyze
     result = analyze(row)
+    result["alcance"] = scope
+    result["cultivo"] = row.get("cultivo")
+    result["periodo"] = str(row.get("periodo"))[:10]
     result["municipio"] = row.get("nombre_municipio")
     result["departamento"] = row.get("nombre_departamento")
     return result
@@ -316,24 +524,11 @@ def multiagent_municipio(codigo: str, cultivo: str = None, periodo: str = None):
 def get_municipio_ndvi(codigo: str):
     """Serie temporal NDVI del municipio desde datos satelitales (MODIS)."""
     con = _con()
-    if not table_exists(con, "features_ndvi"):
-        con.close()
-        return {"error": "no ndvi data"}
-
-    rows = con.execute("""
-        SELECT periodo, ndvi_media_30d, ndvi_anomalia_30d
-        FROM features_ndvi
-        WHERE codigo_municipio = ?
-        ORDER BY periodo DESC
-    """, [codigo]).fetchall()
-
+    serie = _ndvi_serie(con, codigo)
     con.close()
-    return {
-        "data": [
-            {"periodo": str(r[0]), "ndvi": r[1], "anomalia": r[2]}
-            for r in rows
-        ]
-    }
+    if serie is None:
+        return {"error": "no ndvi data"}
+    return {"data": serie}
 
 
 @app.get("/api/municipio/{codigo}/deforestacion")
@@ -343,19 +538,8 @@ def get_municipio_deforestacion(codigo: str):
     if not table_exists(con, "features_deforestacion"):
         con.close()
         return {"error": "no deforestation data"}
-
-    columns = [r[0] for r in con.execute(
-        "SELECT column_name FROM information_schema.columns WHERE table_name='features_deforestacion' ORDER BY ordinal_position"
-    ).fetchall()]
-
-    rows = con.execute(f"""
-        SELECT {', '.join(columns)}
-        FROM features_deforestacion
-        WHERE codigo_municipio = ?
-    """, [codigo]).fetchall()
-
+    fila = _deforestacion_fila(con, codigo)
     con.close()
-    if not rows:
+    if not fila:
         return {"error": "no data for this municipio"}
-
-    return {"data": dict(zip(columns, rows[0]))}
+    return {"data": fila}

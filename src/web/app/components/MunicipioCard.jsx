@@ -125,26 +125,53 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
     };
   }, [data]);
 
-  // Fetch supporting data (NDVI, deforestation, multi-agent)
+  // The exact selection the card is showing — this is what the assistant must analyze
+  const selectedPeriodo = isGeneral ? null : displayRow?.periodo ?? null;
+
+  // Municipio-level data (NDVI, deforestation) — same for every cultivo/period
   useEffect(() => {
     if (!codigo) return;
-    const k = `${codigo}-${selectedCultivo || ""}`;
-    if (keyRef.current && keyRef.current !== k) {
-      setMultiAgent(null); setNdviData(null); setDeforData(null); setMessages([]); setLoaded(false);
-    }
-    keyRef.current = k;
-    const cultivoParam = selectedCultivo === GENERAL ? "" : selectedCultivo || "";
+    let vigente = true;
+    setNdviData(null); setDeforData(null);
     Promise.all([
       fetch(`/api/municipio/${codigo}/deforestacion`).then(r => r.json()).catch(() => null),
       fetch(`/api/municipio/${codigo}/ndvi`).then(r => r.json()).catch(() => null),
-      fetch(`/api/municipio/${codigo}/multiagent?cultivo=${encodeURIComponent(cultivoParam)}`).then(r => r.json()).catch(() => null),
-    ]).then(([d, n, m]) => {
+    ]).then(([d, n]) => {
+      if (!vigente) return;
       setDeforData(d);
       setNdviData(n);
-      setMultiAgent(m);
-      setLoaded(true);
     });
-  }, [codigo, selectedCultivo]);
+    return () => { vigente = false; };
+  }, [codigo]);
+
+  // Multi-agent analysis — depends on the current selection (general vs cultivo × period).
+  // `vigente` descarta respuestas de una selección anterior: sin esto, una respuesta lenta
+  // (p.ej. la del primer render, aún sin período) sobreescribe la del período elegido.
+  useEffect(() => {
+    // En vista de cultivo se espera a conocer el período, para no pedir un análisis que se descarta
+    if (!codigo || !selectedCultivo || (!isGeneral && !selectedPeriodo)) return;
+    let vigente = true;
+    setMultiAgent(null);
+    setLoaded(false);
+    const params = new URLSearchParams({ scope: isGeneral ? "general" : "cultivo" });
+    if (!isGeneral) {
+      params.set("cultivo", selectedCultivo);
+      if (selectedPeriodo) params.set("periodo", String(selectedPeriodo));
+    }
+    fetch(`/api/municipio/${codigo}/multiagent?${params}`)
+      .then(r => r.json())
+      .catch(() => null)
+      .then(m => { if (vigente) { setMultiAgent(m); setLoaded(true); } });
+    return () => { vigente = false; };
+  }, [codigo, selectedCultivo, selectedPeriodo, isGeneral]);
+
+  // Al cambiar de municipio, cultivo o período el contexto del asistente ya no es el mismo:
+  // se reinicia la conversación para que no queden respuestas de otra selección.
+  useEffect(() => {
+    const k = `${codigo}-${selectedCultivo || ""}-${selectedPeriodo || ""}`;
+    if (keyRef.current && keyRef.current !== k) setMessages([]);
+    keyRef.current = k;
+  }, [codigo, selectedCultivo, selectedPeriodo]);
 
   const ask = async () => {
     const q = question.trim();
@@ -153,8 +180,8 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
     setQuestion("");
     setAsking(true);
     try {
-      const body = { question: q };
-      if (!isGeneral) { body.cultivo = selectedCultivo; body.periodo = displayRow?.periodo; }
+      const body = { question: q, scope: isGeneral ? "general" : "cultivo" };
+      if (!isGeneral) { body.cultivo = selectedCultivo; body.periodo = selectedPeriodo; }
       const res = await fetch(`/api/municipio/${codigo}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -398,7 +425,14 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
       {/* Multi-Agent */}
       {multiAgent?.agentes?.length > 0 && (
         <div className="card-section">
-          <h4 className="section-label">Análisis Multi-Agente</h4>
+          <h4 className="section-label">
+            Análisis Multi-Agente
+            <span className="context-note" style={{ fontWeight: 400 }}>
+              {isGeneral
+                ? " · promedio de todos los cultivos"
+                : ` · ${displayRow?.cultivo || selectedCultivo}, ${String(displayRow?.periodo || "").slice(0, 7)}`}
+            </span>
+          </h4>
           {multiAgent.agentes.map((a, i) => (
             <div key={i} className="agent-item">
               <strong>{a.agente}:</strong> <RiskBadge nivel={a.nivel} />
@@ -424,8 +458,8 @@ export default function MunicipioCard({ codigo, cultivo: propCultivo, periodo: p
         <h4 className="section-label">Asistente IA</h4>
         <p className="context-note">
           {isGeneral
-            ? "El asistente analiza el municipio en general."
-            : `El asistente analiza específicamente el cultivo ${displayRow?.cultivo || selectedCultivo}.`
+            ? `El asistente analiza el municipio en general: los ${generalSummary?.totalCultivos ?? 0} cultivos con su último período.`
+            : `El asistente analiza únicamente ${displayRow?.cultivo || selectedCultivo} en el período ${String(displayRow?.periodo || "").slice(0, 7)}.`
           }
         </p>
         <div className="chat-messages">
