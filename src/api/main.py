@@ -14,7 +14,7 @@ Endpoints:
     GET  /api/municipio/{codigo}/deforestacion — datos de deforestación
 """
 from __future__ import annotations
-from src.ingestion.load_duckdb import get_connection, table_exists
+from src.ingestion.load_duckdb import table_exists
 
 import json
 import os
@@ -32,6 +32,19 @@ from config import config
 from dotenv import load_dotenv
 load_dotenv()
 
+from contextlib import asynccontextmanager
+import logging
+
+from src.api.live_refresh import (
+    bootstrap_duckdb,
+    refresh_status,
+    resolve_duckdb_path,
+    start_background_refresh,
+    stop_background_refresh,
+)
+
+logger = logging.getLogger("api")
+
 _IRA_COLUMNS = [
     "codigo_municipio","cultivo","periodo","spc","sep","sve","ira_score","ira_nivel",
     "anomaly_score","is_anomaly","rendimiento_predicho","rendimiento_ic_inf","rendimiento_ic_sup",
@@ -39,15 +52,36 @@ _IRA_COLUMNS = [
     "nombre_municipio","nombre_departamento",
 ]
 
-app = FastAPI(title="Alerta API", docs_url="/api/docs")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    resolve_duckdb_path()
+    bootstrap_duckdb()
+    start_background_refresh()
+    logger.info("API usando DuckDB: %s", config.duckdb_path)
+    yield
+    stop_background_refresh()
+
+
+app = FastAPI(title="Alerta API", docs_url="/api/docs", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 def _con():
     import duckdb
-    con = duckdb.connect(config.duckdb_path)
-    con.execute("INSTALL spatial; LOAD spatial;")
-    return con
+    import time
+
+    path = config.duckdb_path
+    last_err = None
+    for attempt in range(3):
+        try:
+            con = duckdb.connect(path, read_only=True)
+            con.execute("INSTALL spatial; LOAD spatial;")
+            return con
+        except Exception as exc:
+            last_err = exc
+            time.sleep(0.35 * (attempt + 1))
+    raise last_err  # type: ignore[misc]
 
 
 def _fmt_periodo(value) -> str | None:
@@ -183,10 +217,16 @@ def _deforestacion_resumen(d: dict | None) -> dict | None:
 @app.get("/api/status")
 def get_status():
     db_path = Path(config.duckdb_path)
+    live = refresh_status()
     return {
         "db_exists": db_path.exists(),
+        "db_path": str(db_path),
         "last_updated": datetime.fromtimestamp(db_path.stat().st_mtime).isoformat() if db_path.exists() else None,
-        "scheduler": "GitHub Actions diario (cron: 0 5,17 * * *)",
+        "scheduler": {
+            "github_actions": "0 5,17 * * * (clima + IRA completo → export serving DB)",
+            "in_space_gfw": f"cada {live['gfw_refresh_hours']:.0f} h si ALERTA_LIVE_REFRESH/SPACE_ID",
+        },
+        "live_refresh": live,
     }
 
 
@@ -487,6 +527,187 @@ Sé conciso (máximo 3 párrafos). Si no sabes algo, dilo honestamente."""
         return {"answer": answer}
     except Exception as e:
         return {"answer": f"Error al contactar el modelo: {str(e)[:200]}"}
+
+
+@app.post("/api/municipio/{codigo}/reporte")
+def generar_reporte(codigo: str, body: dict = None):
+    """Genera un reporte ejecutivo estructurado (texto plano) con OpenRouter.
+
+    El frontend lo usa para la página imprimible/PDF. Devuelve secciones claras
+    en lenguaje sencillo, alineadas al cultivo/período seleccionado.
+    """
+    if body is None:
+        body = {}
+
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        return JSONResponse(
+            {
+                "error": "missing_key",
+                "message": "Falta OPENROUTER_API_KEY. El reporte numérico sí se puede ver; el análisis con IA no.",
+            },
+            status_code=503,
+        )
+
+    cultivo = body.get("cultivo")
+    periodo = body.get("periodo")
+    scope = str(body.get("scope") or ("cultivo" if cultivo else "general")).lower()
+    if scope not in ("general", "cultivo"):
+        scope = "cultivo" if cultivo else "general"
+    if scope == "cultivo" and not cultivo:
+        scope = "general"
+
+    con = _con()
+    if not table_exists(con, "ira_resultados"):
+        con.close()
+        return JSONResponse({"error": "no_data", "message": "No hay resultados del IRA."}, status_code=404)
+
+    rows = _ira_rows(con, codigo, cultivo=cultivo if scope == "cultivo" else None)
+    ndvi = _ndvi_serie(con, codigo)
+    defor = _deforestacion_resumen(_deforestacion_fila(con, codigo))
+    con.close()
+
+    if not rows:
+        return JSONResponse(
+            {"error": "no_data", "message": "No hay datos para este municipio/cultivo."},
+            status_code=404,
+        )
+
+    if scope == "general":
+        ctx = _contexto_general(rows)
+        alcance = "Vista GENERAL del municipio (todos los cultivos, último período de cada uno)."
+    else:
+        ctx = _contexto_cultivo(rows, periodo)
+        if ctx is None:
+            return JSONResponse(
+                {"error": "no_data", "message": f"No hay datos del cultivo {cultivo}."},
+                status_code=404,
+            )
+        alcance = f"Vista de cultivo {ctx['cultivo']} en período {ctx['periodo_seleccionado']}."
+
+    contexto = {
+        "municipio": rows[0].get("nombre_municipio") or codigo,
+        "departamento": rows[0].get("nombre_departamento"),
+        **ctx,
+    }
+    if ndvi:
+        contexto["ndvi_satelital"] = {"actual": ndvi[0], "serie_reciente": ndvi[:6]}
+    if defor:
+        contexto["deforestacion"] = defor
+
+    system_prompt = f"""Eres un analista de riesgo agrícola para Colombia. Escribes para agricultores, técnicos y alcaldías.
+Usa español claro. Puedes usar términos técnicos (IRA, SPC, SEP, SVE) si los explicas en la misma frase.
+No uses markdown, asteriscos, numeración con #, ni emojis. Solo texto plano.
+
+{_CHAT_INDICADORES}
+
+ALCANCE: {alcance}
+Usa SOLO las cifras del CONTEXTO. No inventes datos.
+
+Devuelve EXACTAMENTE estas 4 secciones, con estos títulos en mayúsculas y una línea en blanco entre secciones:
+
+RESUMEN
+(2 a 4 oraciones: qué está pasando, nivel de riesgo y por qué importa ahora)
+
+QUE SIGNIFICAN LOS NUMEROS
+(explica IRA y el componente más alto entre SPC/SEP/SVE, en palabras simples; 3 a 5 oraciones)
+
+QUE HACER
+(3 recomendaciones prácticas y concretas, cada una en una oración que empiece con un verbo: Revisar..., Preparar..., Consultar...)
+
+EN UNA FRASE
+(una sola oración que alguien pueda leer en voz alta en una reunión)"""
+
+    try:
+        resp = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "nvidia/nemotron-3-super-120b-a12b:free",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": (
+                            "CONTEXTO (datos reales de la selección):\n"
+                            f"{json.dumps(contexto, ensure_ascii=False, default=str)}\n\n"
+                            "Escribe el reporte con las 4 secciones pedidas. Sin prefacios."
+                        ),
+                    },
+                ],
+                "temperature": 0.35,
+                "max_tokens": 900,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        texto = resp.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        return JSONResponse(
+            {"error": "llm_error", "message": f"No se pudo generar el análisis: {str(e)[:200]}"},
+            status_code=502,
+        )
+
+    secciones = _parse_reporte_secciones(texto)
+    return {
+        "municipio": contexto.get("municipio"),
+        "departamento": contexto.get("departamento"),
+        "scope": scope,
+        "cultivo": cultivo if scope == "cultivo" else None,
+        "periodo": (ctx.get("periodo_seleccionado") if scope == "cultivo" else None),
+        "texto": texto,
+        "secciones": secciones,
+        "generado_en": datetime.utcnow().isoformat() + "Z",
+    }
+
+
+def _parse_reporte_secciones(texto: str) -> dict:
+    """Divide el texto del modelo en secciones conocidas."""
+    keys = {
+        "RESUMEN": "resumen",
+        "QUE SIGNIFICAN LOS NUMEROS": "numeros",
+        "QUÉ SIGNIFICAN LOS NÚMEROS": "numeros",
+        "QUE HACER": "acciones",
+        "QUÉ HACER": "acciones",
+        "EN UNA FRASE": "frase",
+    }
+    out = {"resumen": "", "numeros": "", "acciones": "", "frase": ""}
+    if not texto:
+        return out
+
+    # Normaliza títulos raros del modelo
+    normalized = texto.replace("\r\n", "\n")
+    current = None
+    buf: list[str] = []
+
+    def flush():
+        nonlocal buf, current
+        if current and buf:
+            out[current] = "\n".join(buf).strip()
+        buf = []
+
+    for line in normalized.split("\n"):
+        raw = line.strip()
+        upper = raw.upper().rstrip(":")
+        matched = None
+        for title, key in keys.items():
+            if upper == title or upper.startswith(title):
+                matched = key
+                break
+        if matched:
+            flush()
+            current = matched
+            continue
+        if current is not None:
+            buf.append(line)
+    flush()
+
+    if not any(out.values()):
+        out["resumen"] = texto.strip()
+    return out
 
 
 def _fila_promedio(rows: list[dict]) -> dict:
